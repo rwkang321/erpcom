@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.erpcom.erpcom.common.reference.ReferenceMapper">
+  <select id="codes" resultType="com.erpcom.erpcom.common.reference.ReferenceModels$CodeRow">
+    SELECT C.CODE_GROUP, C.CODE, C.CODE_NAME_MSG_CODE, C.SORT_ORDER, C.EXT_VALUE1, C.EXT_VALUE2, C.EXT_VALUE3
+    FROM TB_COMMON_CODE C JOIN TB_COMMON_CODE_GROUP G ON G.CODE_GROUP=C.CODE_GROUP AND G.USE_YN='Y'
+    WHERE C.CODE_GROUP=#{group} AND C.USE_YN='Y' ORDER BY C.SORT_ORDER,C.CODE
+  </select>
+  <select id="menus" resultType="com.erpcom.erpcom.common.reference.ReferenceModels$MenuRow">
+    SELECT MENU_ID,PARENT_MENU_ID,MENU_CODE,MENU_NAME_MSG_CODE,MENU_TYPE,SCREEN_ID,FORM_PATH,ICON_NAME,SORT_ORDER
+    FROM TB_MENU WHERE USE_YN='Y' ORDER BY SORT_ORDER,MENU_ID
+  </select>
+  <select id="buttons" resultType="com.erpcom.erpcom.common.reference.ReferenceModels$ButtonRow">
+    SELECT MB.MENU_ID,B.BUTTON_ID,B.BUTTON_CODE,B.BUTTON_NAME_MSG_CODE,MB.SORT_ORDER
+    FROM TB_MENU_BUTTON MB JOIN TB_BUTTON B ON B.BUTTON_ID=MB.BUTTON_ID AND B.USE_YN='Y'
+    WHERE MB.USE_YN='Y' ORDER BY MB.MENU_ID,MB.SORT_ORDER,B.BUTTON_ID
+  </select>
+</mapper>

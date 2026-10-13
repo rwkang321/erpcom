@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.erpcom.erpcom.common.master.MasterMapper">
+  <!-- All ${} identifiers come exclusively from the fixed MasterCatalog allowlist. -->
+
+  <sql id="keyWhere">
+    <foreach collection="resource.keys" item="column" separator=" AND ">
+      ${column} = #{keys[${column}]}
+    </foreach>
+  </sql>
+
+  <select id="list" resultType="map">
+    SELECT ${resource.projection} FROM ${resource.table}
+    <if test="!includeInactive">WHERE USE_YN = 'Y'</if>
+    ORDER BY ${resource.orderBy} OFFSET #{offset} ROWS FETCH NEXT #{limit} ROWS ONLY
+  </select>
+
+  <select id="count" resultType="long">
+    SELECT COUNT(*) FROM ${resource.table} <if test="!includeInactive">WHERE USE_YN = 'Y'</if>
+  </select>
+
+  <select id="find" resultType="map">
+    SELECT ${resource.projection} FROM ${resource.table} WHERE <include refid="keyWhere"/>
+  </select>
+
+  <select id="nextId" resultType="long">SELECT SQ_COMMON_ID.NEXTVAL FROM DUAL</select>
+
+  <select id="now" resultType="java.sql.Timestamp">SELECT SYSDATE FROM DUAL</select>
+
+  <insert id="insert">
+    INSERT INTO ${resource.table}
+    (<foreach collection="values" index="column" item="value" separator=",">${column}</foreach>, CREATED_BY)
+    VALUES (<foreach collection="values" item="value" separator=",">#{value}</foreach>, #{actor})
+  </insert>
+
+  <update id="update">
+    UPDATE ${resource.table} SET
+    <foreach collection="values" index="column" item="value" separator=",">${column} = #{value}</foreach>,
+    UPDATED_AT = SYSTIMESTAMP, UPDATED_BY = #{actor}, VERSION_NO = VERSION_NO + 1
+    WHERE <include refid="keyWhere"/> AND VERSION_NO = #{version}
+  </update>
+
+  <update id="deactivate">
+    UPDATE ${resource.table} SET USE_YN = 'N', UPDATED_AT = SYSTIMESTAMP,
+      UPDATED_BY = #{actor}, VERSION_NO = VERSION_NO + 1
+    WHERE <include refid="keyWhere"/> AND VERSION_NO = #{version}
+  </update>
+
+  <select id="lockUser" resultType="long">
+    SELECT USER_ID FROM TB_USER WHERE USER_ID = #{userId} FOR UPDATE
+  </select>
+
+  <update id="lockHierarchy">LOCK TABLE ${resource.table} IN SHARE ROW EXCLUSIVE MODE</update>
+
+  <update id="lockHierarchy" databaseId="h2">UPDATE ${resource.table} SET VERSION_NO = VERSION_NO</update>
+
+  <select id="overlaps" resultType="long">
+    SELECT COUNT(*) FROM ${resource.table} WHERE USE_YN = 'Y'
+    <foreach collection="partition" index="column" item="value">AND ${column} = #{value}</foreach>
+    <if test="identity != null">AND ${resource.identity} != #{identity}</if>
+    <if test="to != null">AND VALID_FROM &lt;= #{to}</if>
+    AND (VALID_TO IS NULL OR VALID_TO &gt;= #{from})
+  </select>
+
+</mapper>

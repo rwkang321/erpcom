@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.erpcom.erpcom.common.permission.PermissionMapper">
+  <select id="user" resultType="com.erpcom.erpcom.common.permission.PermissionModels$UserContext">
+    SELECT U.USER_ID, U.COMPANY_ID, U.SITE_ID, U.DEPT_ID, U.LANG_CODE
+    FROM TB_USER U JOIN TB_COMPANY C ON C.COMPANY_ID = U.COMPANY_ID AND C.USE_YN = 'Y'
+    LEFT JOIN TB_SITE S ON S.SITE_ID = U.SITE_ID
+    LEFT JOIN TB_DEPT D ON D.DEPT_ID = U.DEPT_ID
+    WHERE U.USER_ID = #{userId} AND U.USE_YN = 'Y' AND U.USER_STATUS = 'ACTIVE'
+      AND (U.SITE_ID IS NULL OR S.USE_YN = 'Y') AND (U.DEPT_ID IS NULL OR D.USE_YN = 'Y')
+  </select>
+  <sql id="activeRoles">
+    JOIN TB_USER_ROLE UR ON UR.ROLE_ID = R.ROLE_ID AND UR.USER_ID = #{userId}
+      AND UR.USE_YN = 'Y' AND UR.VALID_FROM &lt;= SYSDATE
+      AND (UR.VALID_TO IS NULL OR UR.VALID_TO &gt;= SYSDATE)
+  </sql>
+  <select id="roleMenus" resultType="com.erpcom.erpcom.common.permission.PermissionModels$MenuGrant">
+    SELECT A.MENU_ID, A.ACCESS_LEVEL, A.DATA_SCOPE FROM TB_ROLE_MENU_AUTH A
+    JOIN TB_ROLE R ON R.ROLE_ID = A.ROLE_ID AND R.USE_YN = 'Y'
+    <include refid="activeRoles"/>
+    JOIN TB_MENU M ON M.MENU_ID = A.MENU_ID AND M.USE_YN = 'Y'
+    WHERE A.USE_YN = 'Y'
+  </select>
+  <select id="userMenus" resultType="com.erpcom.erpcom.common.permission.PermissionModels$MenuOverride">
+    SELECT A.MENU_ID, A.ACCESS_LEVEL, A.DATA_SCOPE FROM TB_USER_MENU_AUTH A
+    JOIN TB_MENU M ON M.MENU_ID = A.MENU_ID AND M.USE_YN = 'Y'
+    WHERE A.USER_ID = #{userId} AND A.USE_YN = 'Y' AND A.VALID_FROM &lt;= SYSDATE
+      AND (A.VALID_TO IS NULL OR A.VALID_TO &gt;= SYSDATE)
+  </select>
+  <select id="roleButtons" resultType="com.erpcom.erpcom.common.permission.PermissionModels$ButtonGrant">
+    SELECT DISTINCT A.MENU_ID, A.BUTTON_ID, A.ACCESS_YN FROM TB_ROLE_BUTTON_AUTH A
+    JOIN TB_ROLE R ON R.ROLE_ID = A.ROLE_ID AND R.USE_YN = 'Y'
+    <include refid="activeRoles"/>
+    JOIN TB_MENU_BUTTON MB ON MB.MENU_ID = A.MENU_ID AND MB.BUTTON_ID = A.BUTTON_ID AND MB.USE_YN = 'Y'
+    JOIN TB_MENU M ON M.MENU_ID = A.MENU_ID AND M.USE_YN = 'Y'
+    JOIN TB_BUTTON B ON B.BUTTON_ID = A.BUTTON_ID AND B.USE_YN = 'Y'
+    WHERE A.USE_YN = 'Y'
+  </select>
+  <select id="userButtons" resultType="com.erpcom.erpcom.common.permission.PermissionModels$ButtonGrant">
+    SELECT A.MENU_ID, A.BUTTON_ID, A.ACCESS_YN FROM TB_USER_BUTTON_AUTH A
+    JOIN TB_MENU_BUTTON MB ON MB.MENU_ID = A.MENU_ID AND MB.BUTTON_ID = A.BUTTON_ID AND MB.USE_YN = 'Y'
+    JOIN TB_MENU M ON M.MENU_ID = A.MENU_ID AND M.USE_YN = 'Y'
+    JOIN TB_BUTTON B ON B.BUTTON_ID = A.BUTTON_ID AND B.USE_YN = 'Y'
+    WHERE A.USER_ID = #{userId} AND A.USE_YN = 'Y' AND A.VALID_FROM &lt;= SYSDATE
+      AND (A.VALID_TO IS NULL OR A.VALID_TO &gt;= SYSDATE)
+  </select>
+  <select id="menuId" resultType="long">
+    SELECT MENU_ID FROM TB_MENU WHERE MENU_CODE = #{menuCode} AND USE_YN = 'Y'
+  </select>
+  <select id="buttonId" resultType="long">
+    SELECT B.BUTTON_ID FROM TB_BUTTON B JOIN TB_MENU_BUTTON MB ON MB.BUTTON_ID = B.BUTTON_ID
+    WHERE MB.MENU_ID = #{menuId} AND B.BUTTON_CODE = #{buttonCode} AND MB.USE_YN = 'Y' AND B.USE_YN = 'Y'
+  </select>
+</mapper>

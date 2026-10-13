@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.erpcom.erpcom.common.message.MessageMapper">
+  <select id="languages" resultType="com.erpcom.erpcom.common.message.LanguageInfo">
+    SELECT LANG_CODE, LANG_NAME, NATIVE_NAME, FALLBACK_LANG_CODE, DEFAULT_YN
+    FROM TB_LANGUAGE WHERE USE_YN = 'Y' ORDER BY SORT_ORDER, LANG_CODE
+  </select>
+  <select id="find" resultType="com.erpcom.erpcom.common.message.MessageInfo">
+    SELECT M.MESSAGE_CODE, M.MESSAGE_TYPE, M.HTTP_STATUS, M.SEVERITY,
+           L.LANG_CODE, L.MESSAGE_TEXT, M.ARG_COUNT
+    FROM TB_MESSAGE M
+    LEFT JOIN TB_MESSAGE_LANG L ON L.MESSAGE_CODE = M.MESSAGE_CODE
+      AND L.LANG_CODE = #{language} AND L.USE_YN = 'Y' AND L.TRANSLATED_YN = 'Y'
+    WHERE M.MESSAGE_CODE = #{code} AND M.USE_YN = 'Y'
+  </select>
+</mapper>

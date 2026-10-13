@@ -1,0 +1,75 @@
+server:
+  port: ${ERPCOM_API_PORT:8083}
+
+spring:
+  config:
+    # Local private settings are imported only by the dev profile.
+    import: "${ERPCOM_SETTINGS_LOCATION:optional:file:./.idea/mysettings.ini[.properties]}"
+  datasource:
+    hikari:
+      pool-name: ErpComHikariPool
+      minimum-idle: ${ERPCOM_DB_MIN_IDLE:5}
+      connection-timeout: ${ERPCOM_DB_CONNECTION_TIMEOUT_MS:30000}
+      maximum-pool-size: ${ERPCOM_DB_MAX_POOL_SIZE:10}
+  flyway:
+    enabled: ${ERPCOM_FLYWAY_ENABLED:true}
+    # Customer-specific seed migrations must be added explicitly.
+    locations: classpath:db/migration
+    baseline-on-migrate: ${ERPCOM_FLYWAY_BASELINE_ON_MIGRATE:true}
+    baseline-version: ${ERPCOM_FLYWAY_BASELINE_VERSION:0}
+    encoding: UTF-8
+
+mybatis:
+  mapper-locations: classpath:mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+
+erpcom:
+  cors:
+    allowed-origin: ${ERPCOM_NEXACRO_ORIGIN:http://localhost:9093}
+  security:
+    swagger-enabled: ${ERPCOM_SWAGGER_ENABLED:true}
+
+  # Level 2 connection settings; Level 1 does not implement authentication.
+  auth:
+    session-ttl-hours: ${ERPCOM_SESSION_TTL_HOURS:8}
+    cleanup-cron: "0 */30 * * * *"                          # 만료 세션 정리 주기
+    local-login:
+      enabled: true                    # 시스템 관리자 아이디·비밀번호 로그인 사용 여부
+      allowed-login-ids: ADMIN         # 비어 있으면 LOCAL 계정 전체 허용
+      failure-threshold: ${ERPCOM_LOGIN_FAILURE_THRESHOLD:5}
+      lock-minutes: ${ERPCOM_LOGIN_LOCK_MINUTES:15}
+      bcrypt-strength: ${ERPCOM_BCRYPT_STRENGTH:12}
+
+  sso:
+    enabled: true
+    provider: mock   # mock(개발용) | ocean-dev
+    callback-url: ${ERPCOM_SSO_CALLBACK_URL:http://localhost:8082/api/v1/auth/sso/callback}
+    frontend-redirect-url: ${ERPCOM_SSO_FRONTEND_URL:http://localhost:9093/index.html}
+    state-secret: ${ERPCOM_SSO_STATE_SECRET:dev-only-state-secret-change-me-0123456789}
+    state-ttl-seconds: 300
+    handoff-ttl-seconds: 60
+    ocean-dev:
+      # ===== Ocean Dev 사양이 나오면 아래 값을 채운다 =====
+      login-url: ${ERPCOM_OCEAN_DEV_LOGIN_URL:}
+      verify-url: ${ERPCOM_OCEAN_DEV_VERIFY_URL:}
+      logout-url: ${ERPCOM_OCEAN_DEV_LOGOUT_URL:}
+      system-code: ${ERPCOM_OCEAN_DEV_SYSTEM_CODE:}
+      client-secret: ${ERPCOM_OCEAN_DEV_CLIENT_SECRET:}
+      timeout-seconds: 5
+      param-names:
+        return-url: returnUrl          # 로그인 화면에 넘기는 "돌아올 주소" 이름
+        state: state
+        system-code: systemCode
+        token: token                   # 돌아올 때 Ocean Dev가 붙여주는 인증값 이름
+      attribute-names:
+        external-id: empNo             # 확인 API 응답의 사번 항목 이름
+        name: name
+        email: email
+
+  bootstrap:
+    enabled: ${ERPCOM_BOOTSTRAP_ENABLED:false}   # Level 2 reserved setting; no Level 1 startup account creation
+    admin-login-id: ${ERPCOM_ADMIN_LOGIN_ID:ADMIN}
+    admin-name: ${ERPCOM_ADMIN_NAME:SYSTEMMANAGER}
+    admin-password: ${ERPCOM_ADMIN_PASSWORD:}
+    admin-company-code: ${ERPCOM_BOOTSTRAP_COMPANY_CODE:ERPCOM}

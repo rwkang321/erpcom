@@ -1,0 +1,58 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '4.0.8'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.erpcom'
+version = '0.0.1-SNAPSHOT'
+description = 'erpcom'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+tasks.withType(JavaExec).configureEach {
+    jvmArgs '-Dfile.encoding=UTF-8'
+    jvmArgs '-Dsun.stdout.encoding=UTF-8'
+    jvmArgs '-Dsun.stderr.encoding=UTF-8'
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // REST API + JSON
+    implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+
+    // 입력 검증
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+
+    // Oracle + MyBatis
+    runtimeOnly 'com.oracle.database.jdbc:ojdbc17'
+    implementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter:4.0.1'
+    testImplementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter-test:4.0.1'
+
+    // Flyway (Oracle)
+    implementation 'org.springframework.boot:spring-boot-starter-flyway'
+    runtimeOnly 'org.flywaydb:flyway-database-oracle'
+
+    // Swagger: http://localhost:8082/swagger-ui.html
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.0'
+
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testRuntimeOnly 'com.h2database:h2'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
