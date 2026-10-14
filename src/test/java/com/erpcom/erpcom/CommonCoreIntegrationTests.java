@@ -51,7 +51,7 @@ class CommonCoreIntegrationTests {
         jdbc.update("INSERT INTO TB_USER_ROLE (USER_ID,ROLE_ID,VALID_FROM,CREATED_BY) VALUES (2,50,SYSDATE-1,0)");
     }
     @Test void allTablesLoad() {
-        assertThat(MasterCatalog.RESOURCES).hasSize(18);
+        assertThat(MasterCatalog.RESOURCES).hasSize(21);
         for (var resource : MasterCatalog.RESOURCES) assertThat(masters.list(resource.name(),0,200,true)).isNotNull();
     }
     @Test void anonymousRequestsCannotSpoofActor() throws Exception {

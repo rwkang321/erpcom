@@ -48,7 +48,8 @@ public class CommonWebConfiguration {
                                 long userId = users.require(request).userId();
                                 permissions.requireButton(userId, rule.menu(), rule.button(), rule.level());
                                 var scopes = rule.scopes().length > 0 ? rule.scopes()
-                                        : classRule == null ? new com.erpcom.erpcom.common.permission.DataScope[0] : classRule.scopes();
+                                        : classRule == null ? new com.erpcom.erpcom.common.permission.DataScope[0]
+                                          : classRule.scopes();
                                 if (scopes.length > 0) permissions.requireScope(userId, rule.menu(), rule.level(), scopes);
                             }
                         }
@@ -59,10 +60,27 @@ public class CommonWebConfiguration {
         };
     }
     /**
+     * @Bean
      * WebMvcConfigurer commonPermissionConfigurer(RequestUserService users, PermissionService permissions) {
      *     return new WebMvcConfigurer() {
      *         public void addInterceptors(InterceptorRegistry registry) {
-     *             registr.addInterceptor(
+     *             registry.addInterceptor(new HandlerInterceptor() {
+     *                 public boolean preHandle(HttpServletRequest req, HttpServletResponse res, Object handler) {
+     *                     if (handler instanceof HandlerMethod method) {
+     *                         var rule = AnnotatedElementUtils.findMergedAnnotation(method.getMethod(), RequiresPermission.class);
+     *                         var classRule = AnnotatedElementUtils.findMergedAnnotation(method.getBeanType(), RequiresPermission.class);
+     *                         if (rule == null) rule = classRule;
+     *                         if (rule != null) {
+     *                             long userId = users.require(req).userId();
+     *                             permissions.requireButton(userId, rule.menu(), rule.button(), rule.level());
+     *                             var scopes = rule.scopes().length > 0 ? rule.scopes()
+     *                                  : classRule == null ? new com.erpcom.erpcom.common.permission.DataScope[0] : classRule.scopes();
+     *                             if (scopes.length > 0) permissions.requireScope(userId, rule.menu(), rule.level(), scopes);
+     *                         }
+     *                     }
+     *                     return true;
+     *                 }
+     *             }).addPathPatterns("/api/common/**");
      *         }
      *     }
      * }

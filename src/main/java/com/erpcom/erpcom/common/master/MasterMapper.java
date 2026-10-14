@@ -22,4 +22,7 @@ public interface MasterMapper {
     void lockHierarchy(@Param("resource") MasterResource resource);
     long overlaps(@Param("resource") MasterResource resource, @Param("partition") Map<String, Object> partition,
                   @Param("identity") Object identity, @Param("from") Timestamp from, @Param("to") Timestamp to);
+    long activeUnitDependents(@Param("unitCode") String unitCode);
+    long activeCurrencyPolicies(@Param("currencyCode") String currencyCode);
+    long activeUnitTypeUsers(@Param("typeCode") String typeCode);
 }

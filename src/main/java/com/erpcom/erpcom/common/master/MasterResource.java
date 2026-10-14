@@ -22,7 +22,7 @@ public record MasterResource(
         return MasterCatalog.RESOURCES.stream()
                 .filter(r -> r.name.equals(name))  /** if named("users"), "users" 만 통과 */
                 .findFirst()
-                .orElseThrow(() -> new ApiException("ERR_NOT_FOUND: %s".formatted(name)));
+                .orElseThrow(() -> new ApiException("ERR_NOT_FOUND"));
     }
 
     public String getTable() { return table; }

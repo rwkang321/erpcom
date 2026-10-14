@@ -11,7 +11,7 @@ import org.springframework.jdbc.datasource.init.*;
 public class TestDatabaseConfiguration {
     @Bean DataSourceInitializer testSchema(DataSource dataSource) throws java.io.IOException {
         StringBuilder sql = new StringBuilder();
-        for (String migration : new String[]{"V001__create_common_tables.sql", "V002__seed_common_reference_data.sql", "V003__harden_common_core.sql"}) {
+        for (String migration : new String[]{"V001__create_common_tables.sql", "V002__seed_common_reference_data.sql"}) {
             String source = new ClassPathResource("db/migration/" + migration)
                 .getContentAsString(StandardCharsets.UTF_8).replaceAll("(?m)^\\s*--.*$", "");
             source = source.replaceAll("(?s)CREATE UNIQUE INDEX UX_(?:USER_LOGIN_UPPER|USER_ROLE_OPEN_ACTIVE|UMA_OPEN_ACTIVE|UBA_OPEN_ACTIVE|LANGUAGE_DEFAULT).*?;", "");

@@ -62,4 +62,14 @@
     AND (VALID_TO IS NULL OR VALID_TO &gt;= #{from})
   </select>
 
+  <select id="activeUnitDependents" resultType="long">
+    SELECT COUNT(*) FROM TB_UNIT WHERE BASE_UNIT_CODE = #{unitCode} AND UNIT_CODE != #{unitCode} AND USE_YN = 'Y'
+  </select>
+  <select id="activeCurrencyPolicies" resultType="long">
+    SELECT COUNT(*) FROM TB_MENU_AMOUNT_FORMAT WHERE CURRENCY_CODE = #{currencyCode} AND USE_YN = 'Y'
+  </select>
+  <select id="activeUnitTypeUsers" resultType="long">
+    SELECT COUNT(*) FROM TB_UNIT WHERE USE_YN = 'Y'
+    <if test="typeCode != null">AND UNIT_TYPE_CODE = #{typeCode}</if>
+  </select>
 </mapper>

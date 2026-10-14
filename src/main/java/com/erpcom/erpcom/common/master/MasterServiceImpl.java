@@ -32,6 +32,7 @@ public class MasterServiceImpl implements MasterService {
     @Transactional
     public Map<String, Object> create(String resource, MasterRequest request, long actor) {
         var definition = MasterResource.named(resource);
+        lockBasis(definition);
         if (request.expectedVersion() != null) invalid();
         var values = normalize(definition, request.values(), true);
         if (definition.identity() != null) values.put(definition.identity(), mapper.nextId());
@@ -46,6 +47,7 @@ public class MasterServiceImpl implements MasterService {
     public Map<String, Object> update(String resource, String key, MasterRequest request, long actor) {
         if (request.expectedVersion() == null) invalid();
         var definition = MasterResource.named(resource);
+        lockBasis(definition);
         var keyValues = keys(definition, key);
         var changes = normalize(definition, request.values(), false);
         for (String primary : definition.keys()) if (changes.containsKey(primary)) invalid();
@@ -61,8 +63,10 @@ public class MasterServiceImpl implements MasterService {
     public void deactivate(String resource, String key, long expectedVersion, long actor) {
         if (expectedVersion < 0) invalid();
         var definition = MasterResource.named(resource);
+        lockBasis(definition);
         var keyValues = keys(definition, key);
         var row = find(definition, keyValues);
+        validateBasisDeactivation(definition, row);
         if (definition.name().equals("languages") && "Y".equals(row.get("DEFAULT_YN")))
             throw new ApiException("ERR_CONFLICT");
         if (mapper.deactivate(definition, keyValues, expectedVersion, actor) != 1)
@@ -121,36 +125,33 @@ public class MasterServiceImpl implements MasterService {
             if (column.required()) invalid();
             return null;
         }
+        try {
+            return switch (column.kind()) {
+                case TEXT -> {
+                    if (!(raw instanceof String value)) throw new IllegalArgumentException();
+                    if (value.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > column.length()) invalid();
+                    if (column.name().endsWith("_YN") && !Set.of("Y", "N").contains(value)) invalid();
+                    yield value;
+                }
+                case NUMBER -> {
+                    BigDecimal value = new BigDecimal(raw.toString());
+                    long number = value.longValueExact();
+                    if (column.length() > 0 && value.setScale(0).abs().precision() > column.length()) invalid();
+                    if (column.name().endsWith("_ID") && number <= 0) invalid();
+                    yield number;
+                }
+                case DECIMAL -> {
+                    BigDecimal value = new BigDecimal(raw.toString())
+                        .setScale(column.scale(), java.math.RoundingMode.UNNECESSARY);
+                    if (value.precision() > column.length()) invalid();
+                    yield value;
+                }
+                case TIME -> raw instanceof Timestamp ? raw
+                    : Timestamp.valueOf(LocalDateTime.parse(raw.toString()));
+            };
+        } catch (ApiException e) { throw e; }
+        catch (RuntimeException e) { throw new ApiException("ERR_INVALID_INPUT"); }
     }
-
-//    private Object convert(Column column, Object raw) {
-//        if (raw == null || raw instanceof String text && text.isBlank()) {
-//            if (column.required()) invalid();
-//            return null;
-//        }
-//        try {
-//            return switch (column.kind()) {
-//                case TEXT -> {
-//                    if (!(raw instanceof String)) throw new IllegalArgumentException();
-//                    String value = (String) raw;
-//                    // Oracle V001 uses byte-length VARCHAR2 unless the schema specifies CHAR semantics.
-//                    if (value.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > column.length()) invalid();
-//                    if (column.name().endsWith("_YN") && !Set.of("Y", "N").contains(value)) invalid();
-//                    yield value;
-//                }
-//                case NUMBER -> {
-//                    var value = new BigDecimal(raw.toString());
-//                    long number = value.longValueExact();
-//                    if (column.length() > 0 && value.abs().precision() > column.length()) invalid();
-//                    if (column.name().endsWith("_ID") && number <= 0) invalid();
-//                    yield number;
-//                }
-//                case TIME -> raw instanceof Timestamp ? raw
-//                        : Timestamp.valueOf(LocalDateTime.parse(raw.toString()));
-//            };
-//        } catch (ApiException e) { throw e; }
-//        catch (RuntimeException e) { throw new ApiException("ERR_INVALID_INPUT"); }
-//    }
 
     private void validate(MasterResource resource, Map<String, Object> values, Map<String, Object> keys) {
         // Re-enabling a row uses the same validation as inserting it.
@@ -187,6 +188,13 @@ public class MasterServiceImpl implements MasterService {
             validateLanguage(values);
         }
         if (resource.name().equals("message-translations")) validateTranslation(values);
+        switch (resource.name()) {
+            case "units" -> validateUnit(values, keys);
+            case "currencies" -> validateCurrency(values);
+            case "menu-amount-formats" -> validateAmountFormat(values);
+            default -> { }
+        }
+        if ("N".equals(values.get("USE_YN"))) validateBasisDeactivation(resource, values);
     }
 
     private void validateOrganization(MasterResource resource, Map<String, Object> values) {
@@ -273,6 +281,95 @@ public class MasterServiceImpl implements MasterService {
             var matcher = Pattern.compile("\\{(\\d+)").matcher(values.get("MESSAGE_TEXT").toString());
             while (matcher.find()) if (Integer.parseInt(matcher.group(1)) >= count) invalid();
         } catch (RuntimeException e) { invalid(); }
+    }
+
+    private void lockBasis(MasterResource resource) {
+        // Fixed lock order avoids deadlocks between unit/type/currency/policy administration.
+        if (Set.of("units", "currencies", "menu-amount-formats", "codes", "code-groups").contains(resource.name())) {
+            mapper.lockHierarchy(MasterResource.named("codes"));
+            mapper.lockHierarchy(MasterResource.named("units"));
+            mapper.lockHierarchy(MasterResource.named("currencies"));
+            mapper.lockHierarchy(MasterResource.named("menu-amount-formats"));
+        }
+    }
+
+    private Map<String,Object> active(String resource, Map<String,Object> key) {
+        var row = find(MasterResource.named(resource), key);
+        if (!"Y".equals(row.get("USE_YN"))) invalid();
+        return row;
+    }
+
+    private void activeMessage(Object code) {
+        active("messages", Map.of("MESSAGE_CODE", code));
+    }
+
+    private void digits(Object raw) {
+        int value = new BigDecimal(raw.toString()).intValueExact();
+        if (value < 0 || value > 9) invalid();
+    }
+
+    private void validateUnit(Map<String,Object> values, Map<String,Object> keys) {
+        String code = values.get("UNIT_CODE").toString();
+        if (!code.matches("[A-Z][A-Z0-9_]*")) invalid();
+        digits(values.get("QUANTITY_SCALE"));
+        activeMessage(values.get("UNIT_NAME_MSG_CODE"));
+        active("code-groups", Map.of("CODE_GROUP", "UNIT_TYPE"));
+        active("codes", Map.of("CODE_GROUP", "UNIT_TYPE", "CODE", values.get("UNIT_TYPE_CODE")));
+        Object base = values.get("BASE_UNIT_CODE");
+        Object factor = values.get("TO_BASE_FACTOR");
+        if ((base == null) != (factor == null)) invalid();
+        if (factor != null && new BigDecimal(factor.toString()).signum() <= 0) invalid();
+        if (keys != null) {
+            var old = find(MasterResource.named("units"), keys);
+            for (String field : List.of("UNIT_TYPE_CODE", "BASE_UNIT_CODE", "TO_BASE_FACTOR"))
+                if (!same(old.get(field), values.get(field))) throw new ApiException("ERR_CONFLICT");
+        }
+        if (base == null) return;
+        if (code.equals(base.toString())) {
+            if (new BigDecimal(factor.toString()).compareTo(BigDecimal.ONE) != 0) invalid();
+            return;
+        }
+        var root = active("units", Map.of("UNIT_CODE", base));
+        if (!same(values.get("UNIT_TYPE_CODE"), root.get("UNIT_TYPE_CODE"))) invalid();
+        if (!same(root.get("BASE_UNIT_CODE"), base)
+                || root.get("TO_BASE_FACTOR") == null
+                || new BigDecimal(root.get("TO_BASE_FACTOR").toString()).compareTo(BigDecimal.ONE) != 0) invalid();
+    }
+
+    private void validateCurrency(Map<String,Object> values) {
+        if (!values.get("CURRENCY_CODE").toString().matches("[A-Z]{3}")) invalid();
+        Object numeric = values.get("NUMERIC_CODE");
+        if (numeric != null && !numeric.toString().matches("[0-9]{3}")) invalid();
+        digits(values.get("MINOR_UNIT_DIGITS"));
+        activeMessage(values.get("CURRENCY_NAME_MSG_CODE"));
+    }
+
+    private void validateAmountFormat(Map<String,Object> values) {
+        if (!values.get("FIELD_CODE").toString().matches("[A-Z][A-Z0-9_]*")) invalid();
+        digits(values.get("DECIMAL_PLACES"));
+        if (new BigDecimal(values.get("DISPLAY_DIVISOR").toString()).signum() <= 0) invalid();
+        try {
+            var mode = java.math.RoundingMode.valueOf(values.get("ROUNDING_MODE").toString());
+            if (mode == java.math.RoundingMode.UNNECESSARY) invalid();
+        } catch (IllegalArgumentException e) { invalid(); }
+        var menu = active("menus", Map.of("MENU_ID", values.get("MENU_ID")));
+        if ("GROUP".equals(menu.get("MENU_TYPE"))) invalid();
+        Object currency = values.get("CURRENCY_CODE");
+        if (currency != null) active("currencies", Map.of("CURRENCY_CODE", currency));
+        activeMessage(values.get("UNIT_LABEL_MSG_CODE"));
+    }
+
+    private void validateBasisDeactivation(MasterResource resource, Map<String,Object> row) {
+        long dependents = switch (resource.name()) {
+            case "units" -> mapper.activeUnitDependents(row.get("UNIT_CODE").toString());
+            case "currencies" -> mapper.activeCurrencyPolicies(row.get("CURRENCY_CODE").toString());
+            case "codes" -> "UNIT_TYPE".equals(row.get("CODE_GROUP"))
+                ? mapper.activeUnitTypeUsers(row.get("CODE").toString()) : 0;
+            case "code-groups" -> "UNIT_TYPE".equals(row.get("CODE_GROUP"))
+                ? mapper.activeUnitTypeUsers(null) : 0;
+            default -> 0;
+        };
+        if (dependents > 0) throw new ApiException("ERR_CONFLICT");
     }
 
     private void invalid() { throw new ApiException("ERR_INVALID_INPUT"); }
