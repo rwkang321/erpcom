@@ -1,12 +1,12 @@
 # ErpCom Level 1 — 처음부터 따라 읽는 공통 시스템 설명서
 
-기존 소스 설명 작성 기준: 2026-10-07.
-단위·통화·금액 표시 설계 추가: 2026-10-13, 갱신한 [AGENTS.md](F:/java/workspace/erpcom/AGENTS.md) 기준.
+작성 기준: 2026-10-14, 현재 원본 SQL·Java와 갱신한 [AGENTS.md](F:/java/workspace/erpcom/AGENTS.md).
 
-**구현 상태:** 기존 공통 기반은 18개 테이블입니다. 이번에 Level 1 표준에 추가한 `TB_UNIT`,
-`TB_CURRENCY`, `TB_MENU_AMOUNT_FORMAT`은 설계가 승인된 후속 구현 대상입니다.
-이 문서 갱신으로 새 테이블·Java 클래스·API·테스트가 생성된 것은 아닙니다.
-기존 소스의 상세 설명과 새 설계를 구분해서 읽으세요.
+**현재 상태:** 원본 V001에는 21개 테이블 정의, V002에는 테이블별 초기 자료가 있습니다.
+단위·통화·금액 표시 소스와 `common/basis`의 Java 파일 5개도 원본에 반영되어 있습니다.
+이는 소스가 준비됐다는 뜻이며 실제 Oracle DB 초기화나 Level 2 로그인·운영 화면 실행을 확인했다는 뜻은 아닙니다.
+2026-10-07의 MasterCatalog 124줄 설명은 학습용 이전 버전으로 구분해서 보존했습니다.
+현재의 소수형·21개 기준정보·basis 연결은 6.1, 15.10, 17장에서 설명합니다.
 
 이 문서는 Java를 잘 모르는 사람도 읽을 수 있도록 작성한 설명서입니다. 먼저 프로그램이 하는 일을 일상적인 말로 설명하고, 그 일을 맡은 **실제 Java 파일과 메서드**를 바로 연결합니다. 기존 문서를 먼저 읽을 필요는 없습니다.
 
@@ -16,13 +16,13 @@
 
 처음에는 1~5장을 읽으세요. “무엇을 만들었는가”, “파일들이 왜 나뉘었는가”, “회사 하나를 저장하면 무슨 일이 일어나는가”를 이해할 수 있습니다. 그다음 6~10장에서 입력 검사·권한·다국어·화면 준비 데이터를 배웁니다. 설정은 11장, DB 변경은 12장, 테스트는 13장입니다. 특정 파일을 찾을 때는 15장의 전체 파일 목록을 보세요.
 
-새로 추가할 단위·통화·금액 표시 기준은 17장에 있습니다. 인증 방식과 이 기준정보가 어떻게 연결되는지는
+현재 추가된 단위·통화·금액 표시 기준과 구현은 17장에 있습니다. 인증 방식과 이 기준정보가 어떻게 연결되는지는
 [ErpComLevel2.md](F:/java/workspace/erpcom/docs/ErpComLevel2.md)를 함께 읽으세요.
 
 - [1. 지금 만든 것은 무엇인가](#chapter-1)
 - [2. 꼭 필요한 말부터 배우기](#chapter-2)
 - [3. 프로그램이 켜질 때와 요청이 들어올 때](#chapter-3)
-- [4. 18개 테이블은 각각 무엇을 보관하는가](#chapter-4)
+- [4. 21개 테이블은 각각 무엇을 보관하는가](#chapter-4)
 - [5. 회사 등록·조회·수정·비활성화를 끝까지 따라가기](#chapter-5)
 - [6. 잘못된 입력을 막는 메서드들](#chapter-6)
 - [7. 누가 어떤 기능을 사용할 수 있는가](#chapter-7)
@@ -30,18 +30,18 @@
 - [9. 오류가 같은 모양으로 나오는 이유](#chapter-9)
 - [10. 화면을 시작할 때 필요한 데이터](#chapter-10)
 - [11. application-dev.yaml과 mysettings.ini의 역할](#chapter-11)
-- [12. DB를 만들고 변경하는 세 개의 SQL](#chapter-12)
+- [12. DB를 만들고 초기 자료를 넣는 두 개의 SQL](#chapter-12)
 - [13. 자동 테스트가 확인하는 것](#chapter-13)
 - [14. 실제로 읽고 추적하는 연습](#chapter-14)
 - [15. 모든 Java 파일과 메서드 찾기](#chapter-15)
 - [16. 자주 생기는 오해와 용어 사전](#chapter-16)
-- [17. 추가 설계: 재고 단위·통화·금액 표시 설정](#chapter-17)
+- [17. 재고 단위·통화·금액 표시와 basis 구현](#chapter-17)
 
 특정 코드를 자세히 이해하려면 아래 설명으로 바로 이동할 수 있습니다.
 
 - [@Valid·@NotNull·@Size·@Min의 실제 요청 예제](#validation-examples)
 - [POST companies의 JSON을 MasterRequest로 읽는 이유와 순서](#request-binding-examples)
-- [MasterCatalog.java 124줄 전체의 줄별 설명](#catalog-line-guide)
+- [이전 MasterCatalog 124줄의 학습용 설명](#catalog-line-guide)
 - [직접 만든 @RequiresPermission과 preHandle()의 실제 실행 예제](#permission-annotation-examples)
 
 <a id="chapter-1"></a>
@@ -65,19 +65,19 @@
 | 한국어·영어 등 알맞은 메시지를 찾는다 | `MessageServiceImpl.java` |
 | 오류를 같은 JSON 모양으로 돌려준다 | `ApiExceptionHandler.java`, `ApiErrorWriter.java` |
 | 화면에서 쓸 메뉴·버튼·공통코드를 준비한다 | `ReferenceDataServiceImpl.java` |
-| 필요한 테이블과 기본값을 만든다 | `V001`, `V002`, `V003` SQL 파일 |
+| 필요한 테이블과 기본값을 만든다 | 통합 `V001`, 테이블별 Seed `V002` SQL 파일 |
 | 개발용 설정 파일을 읽고 CORS를 적용한다 | `application-dev.yaml`, `CommonCorsProperties.java`, `CommonWebConfiguration.java` |
 
-2026-10-13에 다음 세 영역을 Level 1 표준에 추가했습니다. **아래 내용은 아직 구현되지 않았습니다.**
+단위·통화·금액 표시의 세 영역도 현재 원본 SQL·Java에 반영되어 있습니다.
 
-| 추가할 공통 기능 | 기준정보 원본 | 설명 |
+| 공통 기능 | 기준정보 원본 | 설명 |
 |---|---|---|
 | 재고·자산 단위를 관리한다 | `TB_UNIT` | EA·KG·G 등 단위와 수량 정밀도·환산 기준 |
 | 지원 통화를 관리한다 | `TB_CURRENCY` | KRW·USD·EUR 등 통화와 기본 소수 자릿수 |
 | 메뉴·금액 항목마다 표시 방법을 정한다 | `TB_MENU_AMOUNT_FORMAT` | 원·천원·억원 표시 배율, 소수 자릿수, 반올림 |
 
-현재의 `MasterCatalog.java`나 관리 API가 이 세 기준정보를 이미 처리한다고 생각하면 안 됩니다.
-기존 구현 18개와 추가 설계 3개를 합하면 목표 범위는 21개 테이블이지만, 현재 구현 수는 18개입니다.
+현재 `MasterCatalog.java`와 공통 관리 API는 기존 18개와 새 3개를 합친 21개 기준정보를 처리합니다.
+화면용 조회와 계산은 `common/basis`의 파일 5개가 담당합니다. 실제 DB에 표가 생성되려면 통합 Migration을 적용해야 합니다.
 
 ### 1.2 Level 2는 신분을 확인하는 단계
 
@@ -154,7 +154,7 @@ Controller가 곧바로 SQL을 실행하지 않습니다. 서비스가 먼저 �
 
 `record`는 자료를 묶어 전달하는 작은 상자입니다. `MasterRequest`는 입력 상자이고, `ApiError`는 오류 결과 상자입니다. record의 `expectedVersion()`은 그 상자에서 `expectedVersion` 값을 꺼내는 메서드입니다. 이런 꺼내기 메서드는 Java가 자동으로 만듭니다.
 
-`Map<String, Object>`는 “이름과 값의 짝”을 담습니다. 회사 행에서 `row.get("COMPANY_NAME")`으로 이름을 꺼낼 수 있습니다. 서로 다른 18개 테이블을 공통 처리하기 위해 관리 API의 행은 Map으로 전달합니다.
+`Map<String, Object>`는 “이름과 값의 짝”을 담습니다. 회사 행에서 `row.get("COMPANY_NAME")`으로 이름을 꺼낼 수 있습니다. 서로 다른 21개 테이블을 공통 처리하기 위해 관리 API의 행은 Map으로 전달합니다.
 
 `List`는 순서가 있는 목록입니다. `List<LanguageInfo>`는 언어 정보 상자를 여러 개 담은 목록입니다. `Set`은 같은 값이 중복되지 않게 모으는 주머니입니다. 언어 순환이나 부서 순환을 확인할 때 사용합니다.
 
@@ -486,14 +486,14 @@ MasterServiceImpl.find() → MasterMapper.find()
 테스트나 향후 배치가 Service를 직접 호출하면 HTTP interceptor를 지나지 않습니다. 그런 호출자는 별도로 적절한 권한과 신뢰할 수 있는 actor를 확보해야 합니다. “Service 메서드를 호출하면 어떤 상황에서도 자동으로 관리자 권한을 검사한다”고 이해하면 안 됩니다.
 
 <a id="chapter-4"></a>
-## 4. 18개 테이블은 각각 무엇을 보관하는가
+## 4. 21개 테이블은 각각 무엇을 보관하는가
 
-이 장의 표와 API 목록은 **현재 구현된 18개 테이블**을 설명합니다.
-추가 설계 3개는 17장에서 따로 설명하며, 이 장의 실제 API 목록에는 포함하지 않습니다.
+이 장은 현재 원본 SQL에 정의된 21개 테이블과 공통 관리 resource를 설명합니다.
+단위·통화·금액 표시의 실제 계산과 basis 파일 연결은 17장에서 더 자세히 설명합니다.
 
 ### 4.1 모든 표에 붙어 있는 다섯 칸과 버전 번호
 
-18개 일반 테이블은 공통 관리 칸을 가지고 있습니다. `V001`이 다섯 칸을 만들고, `V003`이 `VERSION_NO`를 추가합니다.
+21개 일반 테이블은 공통 관리 칸을 가지고 있습니다. 통합 `V001`이 다섯 칸과 `VERSION_NO`를 처음부터 만듭니다.
 
 | 컬럼 | 쉬운 뜻 | 누가 정하는가 |
 |---|---|---|
@@ -532,10 +532,13 @@ MasterServiceImpl.find() → MasterMapper.find()
 | `user-button-permissions` | `TB_USER_BUTTON_AUTH` | `USER_BUTTON_AUTH_ID` | 사용자별 화면·버튼 예외 |
 | `code-groups` | `TB_COMMON_CODE_GROUP` | `CODE_GROUP` | 공통코드 분류 |
 | `codes` | `TB_COMMON_CODE` | `CODE_GROUP~CODE` | 분류 안의 코드 |
+| `units` | `TB_UNIT` | `UNIT_CODE` | 재고·자산 단위 |
+| `currencies` | `TB_CURRENCY` | `CURRENCY_CODE` | 통화 기준정보 |
+| `menu-amount-formats` | `TB_MENU_AMOUNT_FORMAT` | `MENU_ID~FIELD_CODE` | 메뉴·금액 항목의 표시 방법 |
 
 예를 들어 `/api/common/admin/codes/USER_STATUS~ACTIVE`는 “사용자 상태 분류 안의 ACTIVE 코드”입니다. `/api/common/admin/menu-buttons/1010~3`은 “1010번 화면에 놓인 3번 버튼”입니다.
 
-숫자 한 칸으로 찾는 11개 resource는 서버가 새 번호를 생성합니다. 언어·메시지·코드처럼 의미 있는 문자열이나 복합키를 쓰는 나머지 7개는 그 키를 등록 자료에 넣습니다. `MasterCatalog.java`의 각 `MasterResource` 정의에서 `identity`가 있으면 서버 번호 생성 대상입니다.
+숫자 한 칸으로 찾는 11개 resource는 서버가 새 번호를 생성합니다. 언어·메시지·코드처럼 의미 있는 문자열이나 복합키를 쓰는 나머지 10개는 그 키를 등록 자료에 넣습니다. `MasterCatalog.java`의 각 `MasterResource` 정의에서 `identity`가 있으면 서버 번호 생성 대상입니다.
 
 ### 4.3 회사 → 사업장 → 부서 → 사용자
 
@@ -637,6 +640,9 @@ MasterServiceImpl.find() → MasterMapper.find()
 | user-button-permissions | USER_ID, MENU_ID, BUTTON_ID | VALID_FROM=DB 현재 시각 | ACCESS_YN, VALID_TO, REASON |
 | code-groups | CODE_GROUP | 없음 | DESCRIPTION |
 | codes | CODE_GROUP, CODE, CODE_NAME_MSG_CODE | SORT_ORDER=0 | EXT_VALUE1, EXT_VALUE2, EXT_VALUE3 |
+| units | UNIT_CODE, UNIT_NAME_MSG_CODE, UNIT_TYPE_CODE | QUANTITY_SCALE=0, SORT_ORDER=0 | BASE_UNIT_CODE, TO_BASE_FACTOR |
+| currencies | CURRENCY_CODE, CURRENCY_NAME_MSG_CODE, MINOR_UNIT_DIGITS | SORT_ORDER=0 | NUMERIC_CODE |
+| menu-amount-formats | MENU_ID, FIELD_CODE, UNIT_LABEL_MSG_CODE | DISPLAY_DIVISOR=1, DECIMAL_PLACES=0, ROUNDING_MODE=HALF_UP | CURRENCY_CODE |
 
 표의 “DB 현재 시각”은 `MasterMapper.now()`의 SYSDATE입니다. 나중에 기간을 지정하려면 `2030-01-02T09:00:00`처럼 보냅니다. 종료 null은 끝이 정해지지 않은 기간입니다.
 
@@ -657,7 +663,7 @@ API 주소의 한 행 조회는 위 표의 PK를 쓰고, 권한 검사 annotatio
 
 ### 5.1 왜 CompanyController.java가 없는가
 
-회사·부서·언어 등 18개 기준정보는 기본적인 등록·조회·수정·비활성화 과정이 비슷합니다. 그래서 각 표마다 비슷한 Controller와 Service를 복사하지 않고 다음 파일들이 함께 처리합니다.
+회사·부서·언어 등 21개 기준정보는 기본적인 등록·조회·수정·비활성화 과정이 비슷합니다. 그래서 각 표마다 비슷한 Controller와 Service를 복사하지 않고 다음 파일들이 함께 처리합니다.
 
 - `MasterCatalog.java`: 관리 가능한 자료와 필드의 고정 목록.
 - `MasterResource.java`: 특정 자료의 테이블·키·입력 필드 정보를 담는 상자.
@@ -804,7 +810,7 @@ MasterRequest body = new MasterRequest(
 
 #### 5.4.4 왜 테이블별 CompanyRequest를 쓰지 않았는가
 
-현재 18개 resource가 같은 create()/update() 창구를 공유합니다. 회사는 COMPANY_CODE·COMPANY_NAME, 사업장은 COMPANY_ID·SITE_CODE·SITE_NAME, 사용자-ROLE은 USER_ID·ROLE_ID를 보냅니다. 안쪽 필드가 서로 다릅니다.
+현재 21개 resource가 같은 create()/update() 창구를 공유합니다. 회사는 COMPANY_CODE·COMPANY_NAME, 사업장은 COMPANY_ID·SITE_CODE·SITE_NAME, 사용자-ROLE은 USER_ID·ROLE_ID를 보냅니다. 안쪽 필드가 서로 다릅니다.
 
 바깥 입력은 공통 규격으로 두고, 안쪽 값을 Map으로 받은 이유입니다.
 
@@ -1009,7 +1015,11 @@ GET /api/common/admin/role-button-permissions/20~1010~3
 
 `MasterCatalog.java`는 “현재 관리할 수 있는 자료와 칸의 목록”입니다. 예를 들어 회사의 편집 칸은 `COMPANY_CODE`, `COMPANY_NAME`입니다. `MasterResource`의 생성자가 공통 편집 칸인 `USE_YN`을 덧붙입니다.
 
-`MasterCatalog.Column`에는 `name`, `kind`, `length`, `required`, `defaultValue`가 들어 있습니다. “필드 이름, 자료 종류, 최대 길이, 필수 여부, 기본값”이라는 뜻입니다. `Kind`의 `TEXT`, `NUMBER`, `TIME`은 글자·숫자·시간을 구분합니다.
+`MasterCatalog.Column`에는 `name`, `kind`, `length`, `required`, `defaultValue`, `scale`이 들어 있습니다.
+필드 이름·자료 종류·길이/정밀도·필수 여부·기본값·소수 자릿수라는 뜻입니다.
+`Kind`는 TEXT(글자), NUMBER(long 범위의 정수), DECIMAL(BigDecimal 십진수), TIME(시간)입니다.
+5개 인자의 기존 생성자도 남아 있고 scale의 기본값은 0입니다.
+예를 들어 TO_BASE_FACTOR는 DECIMAL, 전체 정밀도 38, 소수 자릿수 18이고 DISPLAY_DIVISOR는 DECIMAL(38,0)입니다.
 
 예를 들어 `COMPANY_CODE` 정의는 “문자열이고 최대 20바이트이며 반드시 필요하고 별도 기본값은 없다”는 의미입니다. 이 정의를 `MasterServiceImpl.normalize()`와 `convert()`가 읽습니다.
 
@@ -1017,9 +1027,12 @@ Java 목록에 없는 resource나 필드 이름은 사용할 수 없습니다. �
 
 
 <a id="catalog-line-guide"></a>
-### 6.1.A MasterCatalog.java의 124줄을 한 줄씩 실제 값과 연결하기
+### 6.1.A 이전 MasterCatalog.java 124줄을 학습용으로 읽기
 
-아래 번호는 현재 [MasterCatalog.java](F:/java/workspace/erpcom/src/main/java/com/erpcom/erpcom/common/master/MasterCatalog.java)의 실제 줄 번호입니다. 빈 줄도 빠뜨리지 않았습니다. 이후 소스 줄을 추가하면 번호는 달라질 수 있습니다.
+아래 번호와 코드는 **2026-10-07의 이전 124줄 버전**을 설명하는 학습 자료입니다.
+현재 [MasterCatalog.java](F:/java/workspace/erpcom/src/main/java/com/erpcom/erpcom/common/master/MasterCatalog.java)는
+21개 resource와 DECIMAL·scale을 포함하므로 아래 번호가 현재 파일의 줄 번호라는 뜻은 아닙니다.
+당시의 18개 정의 설명은 유지하고, 현재 변경점은 6.1과 17.10~17.12에서 확인하세요.
 
 먼저 이 파일을 **신청서 작성 규칙집**으로 생각하세요. 회사 등록의 실제 값은 MasterRequest.values에 있고, 이 파일에는 “회사 코드라는 칸은 문자열 20바이트까지, 회사 이름은 필수” 같은 규칙이 있습니다. 여기의 new Column은 DB에 컬럼을 생성하거나 회사 행을 INSERT하는 명령이 아닙니다. Java 안에 규칙 상자를 만드는 표현입니다.
 
@@ -2734,6 +2747,7 @@ COMPANY_CODE의 영어 글자는 21개, UTF-8 길이도 21바이트입니다. 31
 |---|---|---|
 | TEXT | 실제 문자열인지, UTF-8 바이트 길이가 허용 길이 이내인지 | 이름에 숫자 객체를 보내면 거절 |
 | NUMBER | 정수로 정확하게 표현되는지, long 범위인지, 지정된 자릿수 이내인지 | 3.5를 정수 칸에 보내면 거절 |
+| DECIMAL | BigDecimal로 읽고 scale·precision 범위인지, 자동 반올림 없이 저장할 수 있는지 | 계수 0.001은 허용하고 소수 18자리를 넘는 계수는 거절 |
 | TIME | Timestamp 또는 ISO 형식의 지역 날짜·시간으로 바꿀 수 있는지 | `2030-01-02T09:00:00` |
 
 값이 `null`이거나 공백뿐인 문자열이면 선택 칸은 `null`, 필수 칸은 오류입니다. 일반 문자열을 자동으로 앞뒤 공백 제거해서 저장하는 코드는 아닙니다. 공백뿐인지 확인하는 것과 문자열 전체를 trim하는 것은 다릅니다.
@@ -3005,7 +3019,7 @@ Spring의 @PostMapping은 “어떤 요청을 이 메서드에 보낼까”를 �
 
 #### 7.10.2 왜 권한 어노테이션을 직접 만들었는가
 
-현재 회사·부서·사용자 등 18개 기준정보의 공통 관리에는 조회·신규·저장·삭제 권한이 필요합니다. 각 Controller 메서드 본문에 사용자 확인, 메뉴 확인, 버튼 확인, 범위 확인 코드를 반복하면 실수로 한 곳을 빼먹을 수 있습니다.
+현재 회사·부서·사용자·단위·통화 등 21개 기준정보의 공통 관리에는 조회·신규·저장·삭제 권한이 필요합니다. 각 Controller 메서드 본문에 사용자 확인, 메뉴 확인, 버튼 확인, 범위 확인 코드를 반복하면 실수로 한 곳을 빼먹을 수 있습니다.
 
 그래서 메서드 옆에는 “필요한 조건”을 적고, 실제 확인 순서는 공통 preHandle()에서 수행하게 했습니다. 개발자는 create() 선언을 보면서 BTN_NEW와 WRITE_ALL이 필요하다는 것을 확인할 수 있습니다.
 
@@ -3177,7 +3191,7 @@ COMMON_ADMIN의 READ_ALL+COMPANY Grant와 BTN_SEARCH만 가진 운영자는 목�
 
 ### 7.11 SYSTEM_ADMIN은 마법의 이름이 아니다
 
-`ROLE_CODE='SYSTEM_ADMIN'` 문자열만 보고 모든 API를 통과시키는 코드는 없습니다. V003이 ROLE 10에 COMMON_ADMIN의 WRITE_ALL+COMPANY 및 버튼 권한을 명시적으로 넣었기 때문에 사용할 수 있는 것입니다.
+`ROLE_CODE='SYSTEM_ADMIN'` 문자열만 보고 모든 API를 통과시키는 코드는 없습니다. 현재 통합 V002가 ROLE 10에 COMMON_ADMIN의 WRITE_ALL+COMPANY 및 버튼 권한을 명시적으로 넣었기 때문에 사용할 수 있는 것입니다.
 
 Seed에 사용자나 그 사용자의 ROLE 10 연결을 넣지는 않습니다. 실제 관리자 신분 확인과 최초 사용자 연결은 Level 2 또는 고객별 초기 migration에서 마련해야 합니다.
 
@@ -3277,7 +3291,7 @@ master가 없거나 DB 조회가 실패하면 private `fallback()`이 작은 안
 
 평상시 전체 번역 DB를 Java에 복제한 것은 아닙니다. DB 장애 때 오류 설명을 만들려고 다시 DB를 무한히 부르는 일도 없습니다. `MessageOutageTests.databaseOutageHasSafeFallbackWithoutRecursion()`이 확인합니다.
 
-HTTP 405·415·406 메시지는 정상 DB에서는 V003의 정책으로 응답하지만 최소 Java fallback에 별도로 모두 등록되어 있지는 않습니다. DB 장애 시 이 코드들은 500 fallback을 받을 수 있습니다. 현재 구현의 실제 범위입니다.
+HTTP 405·415·406 메시지는 정상 DB에서는 통합 V002의 메시지 정책으로 응답하지만 최소 Java fallback에 별도로 모두 등록되어 있지는 않습니다. DB 장애 시 이 코드들은 500 fallback을 받을 수 있습니다. 현재 구현의 실제 범위입니다.
 
 ### 8.7 text(): 문장의 빈칸에 값을 넣는다
 
@@ -3474,9 +3488,10 @@ ReferenceDataController.codes()
 
 Row와 Info를 나눈 이유는 DB 원본 자료와 화면용 결과가 다르기 때문입니다. `CodeRow.codeNameMsgCode()`로 코드의 이름표를 꺼내고, 번역 서비스가 얻은 문장을 `CodeInfo.name`에 넣습니다.
 
-현재 `ReferenceDataServiceImpl.bootstrap()`과 위 record들에는 단위·통화 목록이나 메뉴별 금액 표시 설정이 없습니다.
-후속 구현에서 이 자료를 bootstrap에 포함할지 별도 기준정보 조회로 제공할지 정해야 합니다.
-17장의 설명용 결과 객체나 JSON을 현재 API의 응답 형식으로 오해하지 마세요.
+현재 `ReferenceDataServiceImpl.bootstrap()`과 위 record들의 응답은 유지했습니다.
+단위·통화·금액 표시 정책은 `BasisController.java`의 별도 조회 API로 제공합니다.
+`GET /api/common/units`, `/api/common/currencies`, `/api/common/amount-formats/{menuCode}`의
+응답 record는 `BasisModels.java`에 있으며, 17.12에서 실제 연결을 설명합니다.
 
 ### 10.7 내 권한만 보는 API
 
@@ -3576,7 +3591,7 @@ dev를 쓰지 않은 기본 설정은 서버 포트 8082, Swagger false, CORS or
 
 ### 11.6 MyBatis 설정이 Java 결과에 미치는 영향
 
-`mapper-locations: classpath:mapper/**/*.xml`은 MyBatis가 SQL 파일을 찾을 위치입니다. 설정 덕분에 네 Mapper 인터페이스와 XML을 연결합니다.
+`mapper-locations: classpath:mapper/**/*.xml`은 MyBatis가 SQL 파일을 찾을 위치입니다. 설정 덕분에 BasisMapper를 포함한 다섯 Mapper 인터페이스와 XML을 연결합니다.
 
 `map-underscore-to-camel-case=true`와 `arg-name-based-constructor-auto-mapping=true`는 DB의 USER_ID 같은 이름을 record의 userId 등 생성자 항목과 연결할 때 사용합니다. 관리 API의 Map 컬럼 이름을 입력 소문자로 자동 바꿔 주는 설정은 아닙니다.
 
@@ -3648,71 +3663,55 @@ dev YAML에는 다음 Level 2 연결용 설정도 있습니다.
 IDE에서도 같은 의미로 active profile을 dev, working directory를 `F:\java\workspace\erpcom`으로 지정합니다. 패키징된 JAR를 다른 폴더에서 실행하면 상대 import 위치도 그 폴더 기준이므로 필요하면 ERPCOM_SETTINGS_LOCATION으로 외부 설정 위치를 지정합니다.
 
 <a id="chapter-12"></a>
-## 12. DB를 만들고 변경하는 세 개의 SQL
+## 12. DB를 만들고 초기 자료를 넣는 두 개의 SQL
 
-### 12.1 migration은 순서 있는 DB 변경 기록
+### 12.1 Migration은 순서 있는 DB 준비 기록
 
-공책을 처음 만들고, 예제 자료를 적고, 나중에 관리 칸을 더 붙인다고 생각해 봅시다. DB 변경도 순서가 필요합니다. Flyway는 적용한 버전과 파일 checksum을 기록해 어느 변경이 끝났는지 확인합니다.
+현재 최초 설치 구성은 V001과 V002입니다. 기존 V003의 구조 변경은 V001에, 자료는 V002에 합쳤습니다.
+아직 DB에 적용하지 않은 최초 설치 구성을 사용자의 승인으로 통합한 것입니다.
+이미 DB에 적용된 Migration을 수정하지 않는 원칙은 여전히 적용됩니다.
 
-실제로 실행할 원본은 `src/main/resources/db/migration` 아래 파일입니다. `assets` 아래 V001·V002는 기존 참고 자료이며 현재 Flyway 설정의 실행 위치가 아닙니다.
-
-| 파일 | 역할 |
+| 파일 | 하는 일 |
 |---|---|
-| [V001__create_common_tables.sql](F:/java/workspace/erpcom/src/main/resources/db/migration/V001__create_common_tables.sql) | 18개 표, 기본키·외래키·제약·인덱스 생성 |
-| [V002__seed_common_reference_data.sql](F:/java/workspace/erpcom/src/main/resources/db/migration/V002__seed_common_reference_data.sql) | 언어·메시지·조직·ROLE·메뉴·버튼·코드의 공통 예제 |
-| [V003__harden_common_core.sql](F:/java/workspace/erpcom/src/main/resources/db/migration/V003__harden_common_core.sql) | 공통 버전·FK 보강·번호 sequence·관리 메뉴·오류 정책 보완 |
+| [V001__create_common_tables.sql](F:/java/workspace/erpcom/src/main/resources/db/migration/V001__create_common_tables.sql) | 21개 표, 감사·버전 컬럼, FK·제약·인덱스, SQ_COMMON_ID 생성 |
+| [V002__seed_common_reference_data.sql](F:/java/workspace/erpcom/src/main/resources/db/migration/V002__seed_common_reference_data.sql) | 테이블별 공통 기준·다국어·조직·역할·메뉴·권한·단위·통화·표시 예제 |
 
-이미 적용한 V001·V002를 고쳐 다시 쓰는 대신 V003으로 추가 변경했습니다. 기존 파일의 checksum 호환을 유지하기 위해서입니다. 앞으로도 적용 완료된 migration을 수정하기보다 후속 번호의 파일로 변경을 기록하는 것이 기본입니다.
+현재 실행 대상에는 V003이 없습니다. 통합 내용과 같은 V003을 함께 실행하면 중복 생성·등록 오류가 납니다.
+소스에 SQL이 있다고 실제 Oracle DB가 이미 초기화된 것은 아닙니다.
 
-### 12.2 V001: 빈 표와 연결 규칙을 만든다
+### 12.2 V001: 21개 표와 연결 규칙을 만든다
 
-V001은 18개 표와 공통 감사 컬럼을 만듭니다. PK는 같은 이름표가 둘 생기지 않게 하고, FK는 없는 부모나 메뉴·버튼을 연결하지 않게 합니다. UNIQUE는 같은 회사 코드나 로그인 식별값 등의 중복을 막습니다. CHECK는 Y/N, 권한 값, 단계 등 정해진 조건을 검사합니다.
+PK는 자료의 이름표, FK는 다른 표와의 연결, UNIQUE는 중복 방지, CHECK는 값의 조건입니다.
+모든 표에 공통 다섯 칸과 VERSION_NO가 처음부터 있습니다.
+새 표는 TB_UNIT·TB_CURRENCY·TB_MENU_AMOUNT_FORMAT이며 표시명은 기존 메시지를 참조합니다.
+SQ_COMMON_ID는 1,000,000부터 API의 숫자 번호를 발급합니다.
+일부 숫자 PK의 DB identity와 API sequence는 별개이므로 외부 등록도 번호 정책을 맞춰야 합니다.
 
-DDL의 숫자 PK 중 일부에는 GENERATED BY DEFAULT AS IDENTITY가 있습니다. 현재 API는 V003의 공통 sequence로 숫자를 받아 직접 넣습니다. API 밖에서 번호를 만드는 별도 작업도 이 번호 정책과 맞춰야 충돌을 피할 수 있습니다. DB identity와 API sequence가 저절로 서로의 진행 상태를 동기화하는 것은 아닙니다.
+### 12.3 V002: 테이블별로 초기 자료를 한 번에 넣는다
 
-사용자 로그인 ID에는 대소문자를 구분하지 않는 중복을 막기 위한 `UPPER(LOGIN_ID)` unique index가 있습니다. 예를 들어 `admin`과 `ADMIN`은 DB 기준 중복될 수 있습니다. 로그인 인증은 별도지만 사용자 식별값의 중복 방지는 공통 DB 규칙에 들어 있습니다.
+V002는 21개 테이블 구역으로 나눴습니다. 자료가 있는 17개는 각 구역에 초기·추가 자료를 모두 모았고,
+TB_USER·TB_USER_ROLE·사용자 메뉴/버튼 예외권한 네 표는 초기 자료가 없다는 설명을 표시했습니다.
+외래키가 참조하는 표를 먼저 넣고, 같은 표의 부모·기준 행도 먼저 넣습니다.
+테이블 안의 컬럼 순서를 통일했으며 버튼 일괄 배정 INSERT ... SELECT도 해당 구역에 있습니다.
 
-### 12.3 V002: 공통 기준 데이터와 예제를 넣는다
+현재 예제는 지원 언어 5개, 메시지 53개, 번역 102개, 단위 9개, 통화 3개, 금액 표시 정책 3개를 포함합니다.
+실제 사용자·비밀번호는 생성하지 않습니다. 조직과 업무 메뉴는 샘플이며 실제 화면 파일을 만들지는 않습니다.
+메뉴 1030은 PM_TOTAL_ESTIMATED_COST 예제이고, DEFAULT와 TOTAL_ESTIMATED_COST는 억원·소수 1자리,
+UNIT_PRICE는 원 단위·소수 0자리입니다.
 
-**Seed**는 처음 사용할 기본 자료입니다. 프로그램 시작할 때 Mapper로 매번 넣지 않고 migration으로 관리합니다.
+### 12.4 이전 V003의 내용은 어디로 갔는가
 
-V002의 대표 자료는 다음과 같습니다.
-
-| 영역 | 초기 자료 |
+| 이전 보강 내용 | 현재 위치 |
 |---|---|
-| 언어 | ko, en, ja, zh-CN, zh-TW 및 fallback |
-| 메시지 | 오류·저장 안내·삭제 확인·메뉴·역할·버튼·사용자 상태 이름 |
-| 회사 | 100 / C100 / Sample Company |
-| 사업장 | 1000 / S100 / Main Site, 회사 100 |
-| 부서 | 10000 / D100 / Project Division, 회사 100·사업장 1000 |
-| ROLE | 10 SYSTEM_ADMIN, 20 PROJECT_MANAGER, 50 VIEWER |
-| 메뉴 | 1000 PM, 1010 PM_PROJECT_LIST, 1020 PM_WBS |
-| 버튼 | 1 SEARCH, 2 NEW, 3 SAVE, 4 DELETE, 5 EXCEL — 실제 코드는 BTN_ 접두사 |
-| 공통코드 | USER_STATUS의 ACTIVE·LOCKED·DORMANT·RETIRED |
+| SQ_COMMON_ID, 모든 VERSION_NO, 조직 복합 FK·Unique | V001의 Sequence·CREATE TABLE |
+| 언어 fallback FK, 활성 기본 언어 Unique | V001 |
+| 고정 CK_USER_STATUS 제거 | V001에서 해당 CHECK를 만들지 않음 |
+| 인증 필요·자료 없음·충돌·HTTP 오류 메시지 | V002 메시지·번역 구역 |
+| COMMON_ADMIN 메뉴 9000과 ROLE 10의 메뉴·버튼 권한 | V002의 해당 테이블 구역 |
 
-모든 언어에 모든 번역이 완성되어 있는 것은 아닙니다. 빈 번역은 fallback을 사용합니다. 메뉴 예제는 실제 프로젝트 업무 테이블이나 화면 구현을 만드는 자료가 아닙니다.
-
-V002에는 ROLE 메뉴와 일부 ROLE 버튼 예제가 있습니다. 사용자-역할이나 사용자별 예외는 실제 사용자가 생긴 뒤 필요에 따라 연결합니다. **실제 로그인 사용자·비밀번호는 seed하지 않습니다.**
-
-### 12.4 V003: 현재 Java 코드가 필요한 보강
-
-V003은 다음을 추가합니다.
-
-1. `SQ_COMMON_ID`: API 숫자 ID 발급, 시작 1,000,000.
-2. 모든 18개 표의 `VERSION_NO`: 변경 충돌 확인.
-3. 부서의 회사·사업장, 회사·상위부서 연결 FK와 사용자 소속 FK 보강.
-4. 언어 fallback FK와 활성 기본 언어가 최대 하나인 unique index.
-5. 고정 USER_STATUS CHECK 제거: 운영 공통코드로 관리하고 Java가 활성 코드 검증.
-6. 누락된 인증 필요·자료 없음·충돌 메시지의 ko/en 번역.
-7. COMMON_ADMIN 메뉴 9000과 표시 이름, 기존 버튼 배치.
-8. ROLE 10의 COMMON_ADMIN WRITE_ALL+COMPANY와 각 버튼 허용.
-9. HTTP 405·415·406 메시지 master와 ko/en 번역.
-
-복합 FK는 연결된 칸이 null일 때 DB만으로 모든 조합을 확인하지 못할 수 있습니다. 그래서 `validateOrganization()`이 선택적 소속 관계도 확인합니다. DB 제약과 Java 서비스 검사가 서로 보완합니다.
-
-단위·통화·금액 표시의 세 테이블은 V001~V003에 포함되어 있지 않습니다.
-새 구조와 초기 자료는 다음 번호의 후속 Migration으로 추가해야 합니다.
-이미 적용한 V001~V003을 고쳐서 새 테이블을 넣지 않습니다. 이 문서 갱신에서는 Migration을 생성하지 않았습니다.
+복합 FK에서 선택 값이 null인 조합은 Service 검증도 필요합니다.
+`MasterServiceImpl.validateOrganization()`과 새 기준정보 검증 메서드가 DB 제약을 보완합니다.
+고객별 실제 화면 설정과 운영 초기값은 공통 예제와 구분해 후속 Migration 또는 관리자 등록으로 준비합니다.
 
 ### 12.5 baseline-version=0의 뜻
 
@@ -3732,7 +3731,10 @@ baseline이 기존 DB의 테이블을 검사해서 자동으로 원하는 모양
 
 `scripts/generate_master_catalog.py`는 개발 보조 도구입니다. V001의 테이블·타입·길이·필수값·기본값을 읽어 `MasterCatalog.java`의 고정 허용 목록을 생성합니다. 인증 비공개 칸과 감사 칸은 걸러 냅니다.
 
-API 요청마다 DDL을 분석하거나 임의 SQL을 받아 실행하는 프로그램이 아닙니다. 실행하면 MasterCatalog.java 파일을 다시 쓰므로, 앞으로 schema를 확장할 때 생성 결과와 서비스 규칙을 함께 검토해야 합니다. 현재 도구의 입력은 V001이므로 V003 이후의 모든 schema 변경을 자동 이해하는 것은 아닙니다.
+API 요청마다 DDL을 분석하거나 임의 SQL을 받아 실행하는 프로그램이 아닙니다. 실행하면 MasterCatalog.java 파일을 다시 쓰므로, 앞으로 schema를 확장할 때 생성 결과와 서비스 규칙을 함께 검토해야 합니다. 현재 원본 생성기는 아직 18개 이름을 DDL 순서와 zip으로 묶는 이전 버전입니다.
+지금의 21개 표·NUMBER(p,s)와 맞지 않으므로 그대로 재실행하면 안 됩니다.
+검토 폴더의 [생성기 수정안](F:/java/workspace/erpcom/docs/review/Level1_20261014/proposal/scripts/generate_master_catalog.py)은
+21개 테이블명 대응과 소수 자릿수를 처리합니다. 원본 생성기 동기화는 이번 문서 수정에 포함하지 않았습니다.
 
 <a id="chapter-13"></a>
 ## 13. 자동 테스트가 확인하는 것
@@ -3747,7 +3749,7 @@ API 요청마다 DDL을 분석하거나 임의 SQL을 받아 실행하는 프로
 
 ### 13.2 TestDatabaseConfiguration.testSchema(): 연습용 DB 준비
 
-`TestDatabaseConfiguration.java`는 H2 연습 DB에 사용할 schema를 만듭니다. `testSchema(DataSource)`가 V001·V002·V003을 읽고 일부 Oracle 구문을 H2에서 읽을 수 있게 바꿉니다.
+`TestDatabaseConfiguration.java`는 H2 연습 DB에 사용할 schema를 만듭니다. `testSchema(DataSource)`가 통합 V001·V002를 읽고 일부 Oracle 구문을 H2에서 읽을 수 있게 바꿉니다.
 
 - Oracle INSERT ALL을 여러 INSERT로 펼칩니다.
 - 일부 Oracle 함수 기반 unique index를 제거합니다.
@@ -3768,7 +3770,7 @@ private `req(values)`는 간단한 신규 MasterRequest를 만듭니다. private
 
 | 테스트 메서드 | 확인하는 연습 문제 |
 |---|---|
-| `allTablesLoad()` | 18개 resource 정의가 있고 각 표를 읽을 수 있는가 |
+| `allTablesLoad()` | 21개 resource 정의가 있고 각 표를 읽을 수 있는가 |
 | `anonymousRequestsCannotSpoofActor()` | 헤더에 번호를 적어도 익명 사용자가 관리자를 사칭하지 못하는가 |
 | `nexacroPreflightIsAllowedWithoutBypassingAuthentication()` | 허용 origin의 사전 통신은 되지만 실제 익명 요청은 막는가 |
 | `unregisteredCorsOriginIsDenied()` | 등록 안 된 화면 origin의 사전 요청을 막는가 |
@@ -3790,7 +3792,7 @@ private `req(values)`는 간단한 신규 MasterRequest를 만듭니다. private
 | `referenceDataIsLocalizedAndFilteredByEffectivePermissions()` | 허용 메뉴·버튼만 주고 표시 이름을 번역하는가 |
 | `limitedScopeCannotAccessCentralAdministration()` | OWN 범위로 중앙 관리 목록·등록을 이용하지 못하는가 |
 | `filterErrorsUseSameMessageAndStatus()` | 필터용 write()도 같은 상태·문장으로 응답하는가 |
-| `everyResourceSupportsCreateUpdateDeactivateAndReenable()` | 18개 모두 등록·수정·비활성·재활성화와 버전 증가가 가능한가 |
+| `everyResourceSupportsCreateUpdateDeactivateAndReenable()` | 기존 18개 자료의 등록·수정·비활성·재활성화와 버전 증가. 새 3개는 Level1BasisReviewTests에서 별도로 확인 |
 
 마지막 테스트는 관계가 있는 자료들을 먼저 모두 등록한 다음 바꾸어 보는 방식입니다. 앞에서 참조할 언어·메시지 등을 미리 비활성화해 뒤 자료를 만들 수 없는 순서 실수를 피합니다.
 
@@ -3834,6 +3836,27 @@ $env:JAVA_TOOL_OPTIONS = '-Djdk.net.unixdomain.tmpdir=C:/Windows/Temp'
 
 이것은 특정 Gradle 환경 문제에 대한 방법이지 회사 업무 소스의 기능이 아닙니다. 실제 Oracle migration, Oracle 동시 잠금, Level 2 인증, 업무 데이터 범위와 화면 동작은 해당 환경과 구현이 준비된 뒤 별도로 확인해야 합니다.
 
+### 13.8 단위·통화·표시 설정 테스트 10개
+
+현재 원본에도 [Level1BasisReviewTests.java](F:/java/workspace/erpcom/src/test/java/com/erpcom/erpcom/Level1BasisReviewTests.java)가 있습니다.
+아래 메서드는 새 기능을 검증하는 연습 문제입니다.
+
+| 메서드 | 확인할 내용 |
+|---|---|
+| schemaHas21MastersAndZeroVersions() | 21개 정의와 초기 버전, 단위·통화·표시 Seed 개수 |
+| anonymousReferenceQueriesAndHeaderSpoofingAreRejected() | 미인증 조회와 사용자 헤더 위장 거절 |
+| quantitiesUseExactMassDecimalAndBinaryConversions() | KG/G·GB/MB·GIB/MIB 환산과 서로 다른 기준 거절 |
+| amountDisplayPreservesOriginalAndUsesFieldThenMenuThenSystemFallback() | 표시 설정 우선순위·원본 금액 보존·통화 일치 |
+| policyLookupRequiresItsMenuAndAdminWritesRequireButtons() | 메뉴 조회·관리 버튼 권한 |
+| decimalFactorsRemainDecimalsAndRejectPrecisionLoss() | 소수 계수 보존과 허용 정밀도 초과 거절 |
+| sameDimensionCanonicalRootsAndStableUnitDefinitionsAreEnforced() | 같은 종류·최종 기준·정의 변경 제한·활성 참조 |
+| newMasterCrudVersionsAndAuditUseActor() | 새 세 자료의 관리·감사·버전 충돌·재활성화 |
+| invalidCodesScalesDivisorsAndRoundingAreRejected() | 코드·소수 자릿수·배율·반올림 입력 검사 |
+| databaseRejectsMissingHalfOfUnitConversionPair() | 기준 단위와 계수 중 하나만 있는 자료 거절 |
+
+평면 basis 검토 사본에서는 기존 29개와 새 10개, 총 39개가 격리 H2 환경에서 통과했습니다.
+이번 문서 갱신은 그 결과와 현재 파일을 설명하는 작업이며 원본 테스트나 실제 Oracle을 다시 실행하지 않았습니다.
+
 <a id="chapter-14"></a>
 ## 14. 실제로 읽고 추적하는 연습
 
@@ -3849,7 +3872,7 @@ Java 파일 맨 위의 package와 import는 “이 파일의 주소”와 “이
 4. `MasterCatalog.java`의 `companies`에서 허용 칸을 봅니다.
 5. `MasterMapper.java`의 `insert()`와 `MasterMapper.xml`의 같은 id를 나란히 봅니다.
 6. `V001`의 TB_COMPANY를 보고 저장 대상의 컬럼을 확인합니다.
-7. `V003`의 VERSION_NO와 sequence를 보고 추가 규칙을 확인합니다.
+7. 통합 `V001`의 VERSION_NO와 sequence를 보고 추가 규칙을 확인합니다.
 
 이 순서로 보면 SQL이나 annotation을 먼저 외우지 않아도 전체 길을 알 수 있습니다.
 
@@ -4032,7 +4055,7 @@ POST users로 등록합니다. USER_STATUS 기본값은 ACTIVE입니다. 비밀�
 <a id="chapter-15"></a>
 ## 15. 모든 Java 파일과 메서드 찾기
 
-여기는 앞에서 배운 내용을 실제 소스로 찾아갈 때 쓰는 찾아보기입니다. 현재 실행 소스는 **36개 Java 파일**, 테스트·테스트 준비 소스는 **4개 Java 파일**입니다. 모든 파일을 아래에 연결했습니다.
+여기는 앞에서 배운 내용을 실제 소스로 찾아갈 때 쓰는 찾아보기입니다. 현재 실행 소스는 **41개 Java 파일**, 테스트·테스트 준비 소스는 **5개 Java 파일**입니다. 모든 파일을 아래에 연결했습니다.
 
 public 메서드는 다른 담당자가 부르는 출입구이고 private 메서드는 그 클래스 안의 보조 작업입니다. 인터페이스에는 작업의 약속만 있고, record에는 Java가 자동 생성하는 꺼내기 메서드가 있습니다. 생성자는 파일 이름과 같은 이름이며 Spring이 담당자들을 연결할 때 호출합니다.
 
@@ -4046,7 +4069,7 @@ public 메서드는 다른 담당자가 부르는 출입구이고 private 메서
 
 | 파일 | 메서드·역할 |
 |---|---|
-| [MasterCatalog.java](F:/java/workspace/erpcom/src/main/java/com/erpcom/erpcom/common/master/MasterCatalog.java) | private 생성자 — 목록 보관 클래스를 임의 생성하지 않게 함. `RESOURCES`는 18개 고정 정의. `Kind`는 TEXT/NUMBER/TIME. `Column`은 필드 정의 record |
+| [MasterCatalog.java](F:/java/workspace/erpcom/src/main/java/com/erpcom/erpcom/common/master/MasterCatalog.java) | private 생성자 — 목록 보관 클래스를 임의 생성하지 않게 함. `RESOURCES`는 21개 고정 정의. `Kind`는 TEXT/NUMBER/DECIMAL/TIME. `Column`은 scale을 포함한 필드 정의 record |
 | [MasterResource.java](F:/java/workspace/erpcom/src/main/java/com/erpcom/erpcom/common/master/MasterResource.java) | 생성자 — key·column 목록 복사, USE_YN 추가. `named()` — resource 허용 목록 조회. `getTable()`, `getKeys()` — XML용 값 제공. `getOrderBy()` — PK 정렬 문자열. `getProjection()` — 공개 조회 컬럼 문자열 |
 | [MasterRequest.java](F:/java/workspace/erpcom/src/main/java/com/erpcom/erpcom/common/master/MasterRequest.java) | 입력 record. 자동 `values()`, `expectedVersion()`으로 값을 꺼냄. NotNull/Size/Min 기본 입력 검사 |
 | [MasterPage.java](F:/java/workspace/erpcom/src/main/java/com/erpcom/erpcom/common/master/MasterPage.java) | 페이지 결과 record. 자동 `items()`, `total()`, `offset()`, `limit()` |
@@ -4056,7 +4079,7 @@ public 메서드는 다른 담당자가 부르는 출입구이고 private 메서
 | [MasterMapper.java](F:/java/workspace/erpcom/src/main/java/com/erpcom/erpcom/common/master/MasterMapper.java) | DB 작업 약속 11개: `list()`, `count()`, `find()`, `nextId()`, `now()`, `insert()`, `update()`, `deactivate()`, `lockUser()`, `lockHierarchy()`, `overlaps()` |
 | [MyBatisConfiguration.java](F:/java/workspace/erpcom/src/main/java/com/erpcom/erpcom/common/master/MyBatisConfiguration.java) | `databaseIdProvider()` — Oracle/H2 식별과 XML의 DB별 SQL 선택 |
 
-`MasterCatalog.Column`의 자동 꺼내기 메서드는 `name()`, `kind()`, `length()`, `required()`, `defaultValue()`입니다. `MasterResource`의 record 꺼내기는 `name()`, `table()`, `keys()`, `identity()`, `columns()`입니다. `getTable()` 등은 record 꺼내기와 별도로 XML에서 쓰기 편하게 명시한 메서드입니다.
+`MasterCatalog.Column`의 자동 꺼내기 메서드는 `name()`, `kind()`, `length()`, `required()`, `defaultValue()`, `scale()`입니다. `MasterResource`의 record 꺼내기는 `name()`, `table()`, `keys()`, `identity()`, `columns()`입니다. `getTable()` 등은 record 꺼내기와 별도로 XML에서 쓰기 편하게 명시한 메서드입니다.
 
 **MasterServiceImpl의 private 메서드 전체**
 
@@ -4181,14 +4204,15 @@ ReferenceModels의 record 꺼내기는 다음과 같습니다.
 
 record에는 위의 값 꺼내기 외에도 기본 비교 `equals()`, hash 값 `hashCode()`, 글자 표현 `toString()`이 자동 생성됩니다. 일반 업무 처리 메서드처럼 따로 구현한 코드는 아닙니다. enum의 `values()`·`valueOf()`도 Java가 제공합니다. `validate()`에서 AccessLevel.valueOf()를 쓰는 이유는 입력 이름이 실제 enum 값인지 확인하기 위해서입니다.
 
-### 15.8 테스트 파일 4개
+### 15.8 테스트 파일 5개
 
 | 파일 | 어디를 읽으면 되는가 |
 |---|---|
 | [CommonCoreIntegrationTests.java](F:/java/workspace/erpcom/src/test/java/com/erpcom/erpcom/CommonCoreIntegrationTests.java) | `users()` 준비, 23개 테스트 메서드, private `req()`·`code()` — 13.3~13.4 참고 |
 | [DevelopmentConfigurationTests.java](F:/java/workspace/erpcom/src/test/java/com/erpcom/erpcom/DevelopmentConfigurationTests.java) | private `dev()` 준비, BindingConfiguration, 5개 테스트 — 13.5 참고 |
 | [MessageOutageTests.java](F:/java/workspace/erpcom/src/test/java/com/erpcom/erpcom/MessageOutageTests.java) | `databaseOutageHasSafeFallbackWithoutRecursion()` — 13.6 참고 |
-| [TestDatabaseConfiguration.java](F:/java/workspace/erpcom/src/test/java/com/erpcom/erpcom/TestDatabaseConfiguration.java) | `testSchema()` — H2 준비와 Oracle 구문 변환, 13.2 참고 |
+| [TestDatabaseConfiguration.java](F:/java/workspace/erpcom/src/test/java/com/erpcom/erpcom/TestDatabaseConfiguration.java) | `testSchema()` — 통합 SQL 두 개의 H2 준비와 Oracle 구문 변환 |
+| [Level1BasisReviewTests.java](F:/java/workspace/erpcom/src/test/java/com/erpcom/erpcom/Level1BasisReviewTests.java) | 단위·통화·표시·권한·정밀도·FK·버전 검사 10개 |
 
 ### 15.9 설정·빌드·개발 규칙 파일
 
@@ -4204,6 +4228,22 @@ record에는 위의 값 꺼내기 외에도 기본 비교 `equals()`, hash 값 `
 | [.gitignore](F:/java/workspace/erpcom/.gitignore) | .idea·build 등 저장소 제외 대상 |
 
 이 문서가 전체 흐름을 설명하고, 기존 COMMON_API.md·LEVEL1_DESIGN.md·LEVEL2_INTEGRATION.md는 API 목록이나 연결 계약을 추가로 확인할 때 사용할 수 있습니다.
+
+### 15.10 common/basis의 Java 파일 5개
+
+다섯 파일은 모두 `src/main/java/com/erpcom/erpcom/common/basis`에 함께 있습니다.
+package는 `com.erpcom.erpcom.common.basis`이며 역할별 하위 폴더는 없습니다.
+
+| 파일 | 주요 메서드·자료 |
+|---|---|
+| [BasisController.java](F:/java/workspace/erpcom/src/main/java/com/erpcom/erpcom/common/basis/BasisController.java) | units()·currencies()·amountFormats() HTTP 조회 |
+| [BasisService.java](F:/java/workspace/erpcom/src/main/java/com/erpcom/erpcom/common/basis/BasisService.java) | 조회·convertQuantity()·displayAmount()의 약속 |
+| [BasisServiceImpl.java](F:/java/workspace/erpcom/src/main/java/com/erpcom/erpcom/common/basis/BasisServiceImpl.java) | 실제 처리와 private readableMenu() 권한 확인 |
+| [BasisMapper.java](F:/java/workspace/erpcom/src/main/java/com/erpcom/erpcom/common/basis/BasisMapper.java) | units()·unit()·currencies()·currency()·menu()·amountFormats() SQL 연결 |
+| [BasisModels.java](F:/java/workspace/erpcom/src/main/java/com/erpcom/erpcom/common/basis/BasisModels.java) | UnitRow·UnitInfo·CurrencyRow·CurrencyInfo·MenuIdentity·AmountFormatRow·AmountFormatInfo·AmountDisplay record |
+
+SQL은 [BasisMapper.xml](F:/java/workspace/erpcom/src/main/resources/mapper/common/BasisMapper.xml)입니다.
+폴더가 하나여도 HTTP 입구·처리·DB 조회·자료 전달이라는 역할은 각 클래스가 계속 나누어 맡습니다.
 
 <a id="chapter-16"></a>
 ## 16. 자주 생기는 오해와 용어 사전
@@ -4230,7 +4270,7 @@ record에는 위의 값 꺼내기 외에도 기본 비교 `equals()`, hash 값 `
 | 캐시에 권한이 계속 남음 | 현재 결과를 DB에서 다시 계산, 영속 권한 캐시 없음 |
 | 모든 문장이 요청 언어와 같음 | 번역이 없으면 설정 fallback의 실제 문장을 사용 |
 | 테이블에 메뉴가 있으면 실제 화면도 존재 | 화면 경로를 담는 기준정보이며 화면 구현과 다름 |
-| AGENTS.md에 새 세 테이블이 있으면 DB에도 이미 있음 | 새 표준은 승인된 설계. DDL·Java·API 구현은 후속 작업 |
+| SQL·Java에 새 세 기준정보가 있으면 DB도 초기화됨 | 원본 소스 반영과 실제 Oracle Migration 실행은 별개 |
 | CurrencyInfo record를 만들면 통화 테이블도 생김 | record는 전달 객체. DB 생성·조회·저장은 별도 |
 | 원화의 기본 소수 자릿수가 0이면 592.3억원 표시 불가 | 통화 기본 자릿수와 화면 표시 자릿수는 다름 |
 | 억원 화면에서는 DB에도 592.3을 저장 | 실제 금액 59,230,000,000 KRW를 보존하고 표시할 때 나눔 |
@@ -4318,12 +4358,12 @@ record에는 위의 값 꺼내기 외에도 기본 비교 `equals()`, hash 값 `
 파일 이름을 모두 외울 필요는 없습니다. 실제 요청 하나를 정하고 “입구 → 사용자 확인 → 권한 검사 → 처리 담당 → SQL → 결과 또는 오류” 순서로 따라가면 각 파일이 왜 필요한지 이해할 수 있습니다.
 
 <a id="chapter-17"></a>
-## 17. 추가 설계: 재고 단위·통화·금액 표시 설정
+## 17. 재고 단위·통화·금액 표시와 basis 구현
 
 ### 17.1 무엇이 새로 추가되었고, 어디까지 만들어졌는가
 
-이 장은 2026-10-13에 승인된 **후속 구현 설계**입니다. 앞 장의 실제 소스 설명과 구분하세요.
-새 단위·통화·표시 설정을 위한 테이블·조회 객체·API는 아직 만들지 않았습니다.
+이 장은 현재 원본에 반영된 단위·통화·표시 기준과 `common/basis` 구현을 설명합니다.
+SQL 정의와 Java 소스는 있으며 실제 Oracle 실행·화면 연동·Level 2 인증 완료와는 구분합니다.
 
 마트에서 감자를 산다고 생각해 봅시다.
 
@@ -4337,7 +4377,7 @@ KG는 감자의 무게를 재는 **수량 단위**입니다. KRW는 돈의 종�
 천원은 화면에서 숫자를 줄여 보여 주는 **금액 표시 단위**입니다.
 이 세 가지를 모두 UNIT이라고 부르면 무엇을 곱하고 나누어야 하는지 헷갈립니다.
 
-| 담당할 정보 | 추가할 테이블 | 기존 자료와의 연결 |
+| 담당할 정보 | 테이블 | 기존 자료와의 연결 |
 |---|---|---|
 | 수량 단위와 공통 환산 기준 | `TB_UNIT` | 단위 종류는 공통코드, 표시명은 메시지 |
 | 지원 통화와 기본 소수 자릿수 | `TB_CURRENCY` | 표시명은 메시지 |
@@ -4357,6 +4397,7 @@ KG는 감자의 무게를 재는 **수량 단위**입니다. KRW는 돈의 종�
 |---|---|---|
 | `UNIT_CODE` | 단위를 찾는 이름표 | `KG` |
 | `UNIT_NAME_MSG_CODE` | 단위 이름의 번역을 찾는 이름표 | `COD_UNIT_KG` |
+| `UNIT_TYPE_GROUP` | 공통코드 연결을 UNIT_TYPE 분류로 고정하는 보조 칸 | DB 기본값 UNIT_TYPE, API 편집 제외 |
 | `UNIT_TYPE_CODE` | 개수를 세는가, 무게를 재는가, 용량을 재는가 | 무게 분류 |
 | `QUANTITY_SCALE` | 수량에서 소수 몇 자리까지 기본으로 허용하는가 | 업무 기준으로 3 |
 | `BASE_UNIT_CODE` | 같은 종류의 수량을 맞출 기준 단위 | `G` |
@@ -4406,7 +4447,8 @@ BOX라는 단위 목록은 공통 기반에 둘 수 있지만, BOX 안에 몇 �
 공통 환산에서는 같은 종류의 기준 단위와 양수 계수를 검증합니다.
 기준 단위 자신의 계수는 1이며 자기 참조를 허용합니다. 그 외 기준을 따라갔을 때 모순이나 순환이 없어야 합니다.
 환산이 없는 단위는 기준 단위와 계수를 함께 비워 두는 정책을 사용할 수 있습니다.
-단위가 과거 자료에 사용된 뒤 의미나 계수를 변경할 때는 과거 수량이 달라지지 않도록 정책을 정해야 합니다.
+현재 `MasterServiceImpl.validateUnit()`은 등록된 단위의 종류·기준 단위·환산계수 변경을 막습니다.
+과거 수량의 의미가 바뀌지 않게 하는 정책입니다. 의미가 달라지면 새 코드나 별도 이력 설계가 필요합니다.
 
 ### 17.4 MB·GB와 MiB·GiB를 구별한다
 
@@ -4460,13 +4502,14 @@ NUMERIC_CODE는 3자리 문자열로 관리해 선행 0을 보존합니다.
 DB 테이블은 자료를 오래 보관하는 창고이고, record는 창고에서 가져온 자료를 담는 상자입니다.
 둘 중 하나를 고르는 것이 아닙니다.
 
-아래 Java 코드는 **후속 구현용 예시**입니다. 현재 소스에 이 파일이 있는 것은 아닙니다.
+아래 Java 코드는 현재 `common/basis/BasisModels.java` 안의 CurrencyInfo record입니다. 독립된 CurrencyInfo.java 파일은 만들지 않았습니다.
 
 ```java
 public record CurrencyInfo(
         String currencyCode,
-        String currencyName,
-        int minorUnitDigits
+        String name,
+        int minorUnitDigits,
+        String numericCode
 ) {}
 ```
 
@@ -4474,10 +4517,10 @@ public record CurrencyInfo(
 TB_CURRENCY에 KRW, 이름 메시지 코드, 기본 자릿수 0 저장
   ↓ Mapper가 조회
   ↓ MessageService가 한국어 이름을 찾음
-CurrencyInfo("KRW", "대한민국 원", 0)으로 전달
+CurrencyInfo("KRW", "대한민국 원", 0, "410")으로 전달
 ```
 
-`currencyCode()`를 호출하면 KRW, `currencyName()`을 호출하면 대한민국 원,
+`currencyCode()`를 호출하면 KRW, `name()`을 호출하면 대한민국 원,
 `minorUnitDigits()`를 호출하면 0을 꺼낼 수 있습니다.
 이 꺼내기 메서드들은 record 선언으로 Java가 자동으로 만들어 줍니다.
 [Oracle record 설명](https://docs.oracle.com/en/java/javase/21/language/records.html)
@@ -4544,8 +4587,8 @@ DB에는 실제 금액과 통화를 보존합니다. 화면에 보이는 592.3�
 예를 들어 메뉴 DEFAULT를 억원·소수 1자리로 정하고,
 UNIT_PRICE만 원·소수 0자리로 따로 정하면 총예정원가와 개당 단가를 다르게 표시할 수 있습니다.
 
-시스템 기본값은 후속 구현에서 명시합니다. 기본 방향은 실제 통화를 유지하고 배율 1,
-그 통화의 기본 소수 자릿수를 사용하는 것입니다. 반올림 방식도 명시적으로 정합니다.
+현재 `BasisServiceImpl.displayAmount()`의 시스템 기본값은 실제 통화 유지, 배율 1,
+통화의 기본 소수 자릿수, HALF_UP입니다.
 CURRENCY_CODE가 비어 있는 정책에서는 실제 금액의 통화를 사용합니다.
 KRW로 고정한 정책에서는 실제 자료가 KRW인지 확인해야 합니다.
 
@@ -4583,30 +4626,27 @@ DB의 NUMBER(p,s)는 최대 금액과 필요한 계산 정밀도에 맞춰 결�
 편집할 때는 입력 단위를 명확히 알려야 하며, 반올림된 조회값을 그대로 저장해 원본 정밀도를 잃지 않게 합니다.
 다른 통화끼리의 합산에는 별도 환율 정책이 필요합니다.
 
-### 17.10 기존 Java 파일의 어느 부분과 연결해야 하는가
+### 17.10 기존 Java 파일과 현재 연결된 기능
 
-아래 표는 **후속 구현에서 검토할 연결 지점**입니다. 해당 메서드가 새 기능을 이미 처리한다는 뜻은 아닙니다.
+| 파일·메서드 | 현재 역할 |
+|---|---|
+| MasterCatalog.java의 RESOURCES·Kind·Column | 21개 기준정보와 DECIMAL·scale 정의 |
+| MasterServiceImpl.java의 normalize()·convert()·validate() | 허용 입력·소수 정밀도·관계 검증 |
+| MasterServiceImpl.java의 validateUnit()·validateCurrency()·validateAmountFormat() | 단위·통화·메뉴 표시 설정 검증 |
+| MasterServiceImpl.java의 lockBasis()·validateBasisDeactivation() | 공통 변경 잠금과 활성 참조 확인 |
+| MasterServiceImpl.java의 create()·update()·deactivate() | 등록·변경·비활성화와 감사·VERSION_NO |
+| MasterMapper.java / XML의 activeUnitDependents()·activeCurrencyPolicies()·activeUnitTypeUsers() | 사용 중인 기준정보의 비활성화 검사 |
+| MessageServiceImpl.java의 text() | 단위명·통화명·표시 배율의 번역 |
+| ReferenceDataServiceImpl.java의 bootstrap() | 기존 화면 준비 응답 유지 |
+| RequestUserService.java의 require(), CommonWebConfiguration의 preHandle() | 현재 사용자와 공통 관리 권한 확인 |
+| BasisController.java / BasisServiceImpl.java | 별도 기준정보 조회와 환산·금액 표시 |
 
-| 기존 파일·메서드 | 현재 역할 | 확장할 때 필요한 일 |
-|---|---|---|
-| `MasterCatalog.java`의 `RESOURCES`, `Kind`, `Column` | 18개 기준정보의 허용 목록과 필드 규칙 | 새 기준정보를 연결할 경우 목록·소수형 규칙 추가 검토 |
-| `MasterServiceImpl.java`의 `normalize()`, `convert()`, `validate()` | 입력 허용 항목·자료형·관계 검사 | 소수 환산계수, 같은 종류의 단위, 통화·메뉴·메시지 관계 검사 |
-| `MasterServiceImpl.java`의 `create()`, `update()`, `deactivate()` | 기준정보 변경과 버전 검사 | 새 자료에도 감사·버전·트랜잭션 적용 |
-| `MasterMapper.java` / `MasterMapper.xml` | 허용된 자료의 조회·저장 | 새 테이블 처리와 정확한 숫자 바인딩 검토 |
-| `MessageServiceImpl.java`의 `text()` | 메시지 코드로 번역문 조회 | 단위명·통화명·배율 문구에도 재사용 |
-| `ReferenceDataServiceImpl.java`의 `codes()`, `bootstrap()` | 공통코드와 화면 준비 자료 조회 | 새 기준정보를 포함할지 별도 조회할지 결정 |
-| `ReferenceModels.java`의 record들 | 현재 API 결과 자료를 전달 | 필요하면 새 record 또는 결과 항목 추가 |
-| `RequestUserService.java`의 `require()` | 검증된 현재 사용자 확인 | 새 기준정보 변경자도 같은 사용자 확인 사용 |
-| `CommonWebConfiguration.java`의 `preHandle()` | 메뉴·버튼 실행권한 검사 | 새 관리 창구에도 같은 Backend 권한 검사 연결 |
-| `PermissionServiceImpl.java`의 `requireButton()`, `requireData()` | 기능 권한·대상 범위 검사 | 관리 기능과 업무 자료 조회 범위에 맞게 재사용 |
+Controller는 Service를 통해 처리하고 Mapper를 직접 호출하지 않습니다.
+새 기준정보 관리도 기존 MasterController 창구를 사용합니다.
+수량 환산과 화면 표시의 자세한 메서드는 17.12에서 따라가 보세요.
 
-소수형 처리를 설계할 때 기존 숫자 처리를 그대로 재사용해 환산계수가 정수로 잘리지 않는지 확인해야 합니다.
-생성기로 MasterCatalog를 재생성한다면 `scripts/generate_master_catalog.py`의 스키마 기준도 함께 검토해야 합니다.
-Controller가 Mapper를 직접 호출하는 우회는 만들지 않습니다.
-
-이번 문서 수정은 기존 폴더를 이동하지 않습니다. 신규 구현은 사용자가 익숙한
-기능별 `controller`, `service`, `model`, `mapper`, `config` 구분을 따릅니다.
-다국어·오류·권한은 기존 공통 구조를 재사용하며, 패키지 변경이 필요하면 이유와 영향을 먼저 설명합니다.
+Java 파일을 폴더로 역할별 분리하지 않습니다. 기존 common/master·message·permission·reference·web처럼
+basis도 한 폴더에 모두 두며, 각 클래스의 역할과 호출 순서는 유지합니다.
 
 ### 17.11 DB 변경·관리 권한·인증과의 경계
 
@@ -4615,9 +4655,10 @@ Controller가 Mapper를 직접 호출하는 우회는 만들지 않습니다.
 소수 자릿수는 0 이상 정수이며 허용 상한을 정합니다. 배율·환산계수는 양수인지 검사합니다.
 반올림 방식과 메뉴·통화·메시지 참조도 Backend에서 검사합니다.
 
-표준 단위·지원 통화·이름 메시지는 후속 Flyway Migration으로 준비합니다.
+현재 공통 예제는 통합 V002의 테이블별 구역에 있습니다.
 고객별 실제 화면 설정은 별도 고객 Migration 또는 권한 있는 관리자 등록으로 분리합니다.
-현재 SQL 세 개나 테스트가 이 확장 기능까지 검증했다는 뜻은 아닙니다.
+평면 basis 검토안은 격리 H2 환경에서 39개 테스트를 통과했습니다.
+이번 문서 수정에서는 원본 애플리케이션이나 실제 Oracle을 실행하지 않았습니다.
 
 변경 창구는 기존 COMMON_ADMIN과 기능 버튼 권한으로 보호합니다.
 인증을 붙이는 Level 2가 새 단위·통화 테이블을 따로 만들 필요는 없습니다.
@@ -4629,3 +4670,104 @@ Level 2가 검증된 USER_ID를 제공하면 Level 1의 기준정보와 권한 �
 
 품목별 포장 환산·재고 수불·환율을 적용한 업무 금액 계산은 해당 업무의 후속 구현 대상입니다.
 관련 인증 연결은 [ErpComLevel2.md](F:/java/workspace/erpcom/docs/ErpComLevel2.md)에 설명합니다.
+
+
+### 17.12 basis를 한 폴더에서 읽고 실행 흐름 따라가기
+
+```text
+common/
+  master/       공통 등록·수정·비활성화
+  message/      번역 메시지
+  permission/   메뉴·버튼·자료 범위 권한
+  reference/    기존 메뉴·버튼·공통코드 조회
+  web/          사용자 연결·권한 인터셉터·웹 설정
+  error/        공통 오류
+  basis/
+    BasisController.java
+    BasisService.java
+    BasisServiceImpl.java
+    BasisMapper.java
+    BasisModels.java
+```
+
+폴더는 ‘무슨 기능인가’를 구분하고, 파일 이름은 ‘그 기능에서 어떤 일을 맡는가’를 구분합니다.
+한 폴더에 둔다고 Controller가 직접 DB를 읽거나 모든 처리를 한 클래스에 합치는 것은 아닙니다.
+
+#### 17.12.1 통화 목록 요청을 따라가기
+
+인증된 사용자가 GET `/api/common/currencies?lang=ko`를 요청한다고 가정해 봅시다.
+실제 인증 연결이 없는 기본 상태에서는 먼저 401이므로 아래는 신분 확인을 통과한 뒤의 흐름입니다.
+
+1. `BasisController.java`의 currencies()가 요청을 받습니다.
+2. `RequestUserService.require()`로 실제 사용자 번호를 확인하고 MessageService.language()로 언어를 정합니다.
+3. `BasisService.currencies()` 약속으로 일을 전달합니다. 실제 실행 담당자는 BasisServiceImpl입니다.
+4. `BasisServiceImpl.currencies()`가 활성 사용자를 확인하고 BasisMapper.currencies()를 부릅니다.
+5. `BasisMapper.xml`의 currencies SQL이 활성 TB_CURRENCY 행을 읽어 CurrencyRow에 담습니다.
+6. MessageService.text()로 표시 이름을 번역하고 CurrencyInfo로 반환합니다.
+
+이때 KRW의 예시 객체는 CurrencyInfo("KRW", "대한민국 원", 0, "410")입니다.
+`currencyCode()`는 KRW, `name()`은 대한민국 원, `minorUnitDigits()`는 0, `numericCode()`는 410을 반환합니다.
+수량 단위 목록은 BasisController.units() → BasisServiceImpl.units() → BasisMapper.units() 순서로 비슷하게 처리합니다.
+
+#### 17.12.2 1.25 KG를 G로 바꾸기
+
+`BasisServiceImpl.convertQuantity()`는 현재 사용자, 단위의 사용 상태, 입력 수량 정밀도를 확인합니다.
+KG와 G의 종류가 MASS이고 기준 단위가 G로 같으면 다음 계산을 수행합니다.
+
+```text
+1.25 × KG 계수 1000 ÷ G 계수 1 = 1250 G
+```
+
+대상 단위의 소수 자릿수로 정확하게 나타낼 수 없으면 자동 반올림하지 않고 거절합니다.
+EA와 PCS는 각자 기준 단위가 달라 자동 환산하지 않으며 BOX도 품목별 계수 없이는 EA로 바꾸지 않습니다.
+이 메서드는 내부 Service에서 호출하는 계산입니다. 임의 재고를 조회·변경하는 공개 계산 API를 추가한 것은 아닙니다.
+
+#### 17.12.3 총예정원가 592.3 표시를 따라가기
+
+`BasisServiceImpl.displayAmount()`에 서버가 확인한 실제 금액 59,230,000,000 KRW,
+메뉴 PM_TOTAL_ESTIMATED_COST, 항목 TOTAL_ESTIMATED_COST를 전달한다고 가정합니다.
+
+1. readableMenu()가 메뉴 읽기 권한과 활성 메뉴를 확인합니다.
+2. BasisMapper.currency()로 실제 통화를 확인하고 amountFormats()로 해당 메뉴의 활성 설정을 읽습니다.
+3. 항목 설정 → DEFAULT → 시스템 기본 순서로 선택합니다.
+4. 선택한 설정의 통화와 실제 통화가 다르면 ERR_CURRENCY_MISMATCH입니다.
+5. BigDecimal로 100,000,000을 나누고 소수 1자리 HALF_UP를 적용합니다.
+6. AmountDisplay에 원래 금액·실제 통화·표시 숫자·배율·자릿수·번역 문구를 담습니다.
+
+```text
+originalAmount = "59230000000"
+currencyCode   = "KRW"
+displayValue   = "592.3"
+displayDivisor = "100000000"
+decimalPlaces  = 1
+unitLabel      = "억"
+```
+
+원래 금액과 배율은 문자열로 전달해 화면의 부동소수 변환으로 정밀도를 잃지 않게 합니다.
+업무 원가 자료를 읽을 수 있는 회사·부서·소유자 범위 검사는 업무 Service가 먼저 해야 합니다.
+메뉴 표시 설정을 읽는 일은 실제 원가 자료의 접근 권한을 대신하지 않습니다.
+정책 조회 주소는 GET `/api/common/amount-formats/{menuCode}`이며, 기존 bootstrap 응답은 바꾸지 않았습니다.
+
+#### 17.12.4 Java 주소와 XML 주소를 맞추기
+
+Java 다섯 파일의 첫 선언은 모두 다음과 같습니다.
+
+```java
+package com.erpcom.erpcom.common.basis;
+```
+
+Mapper XML은 src/main/resources/mapper/common/BasisMapper.xml에 있습니다.
+
+```xml
+<mapper namespace="com.erpcom.erpcom.common.basis.BasisMapper">
+  <!-- UnitRow는 BasisModels 안에 있으므로 $로 연결한 클래스 이름을 사용한다. -->
+  <select id="units" resultType="com.erpcom.erpcom.common.basis.BasisModels$UnitRow">
+    <!-- 실제 SQL은 BasisMapper.xml 참고 -->
+  </select>
+</mapper>
+```
+
+같은 원칙으로 CurrencyRow와 AmountFormatRow도 BasisModels$... 이름을 사용합니다.
+패키지를 바꾸면 Java import·테스트 import·namespace·resultType을 함께 맞추고,
+옛 역할별 폴더의 같은 클래스가 소스에 중복으로 남지 않게 합니다.
+현재 원본에는 basis/controller·service·mapper·model 없이 평면 basis 파일 다섯 개가 있습니다.

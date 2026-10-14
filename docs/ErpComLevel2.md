@@ -1,14 +1,15 @@
 # ErpCom Level 2 — 인증 연결과 Level 1 재사용 설명서
 
-작성 기준: 2026-10-13.
+작성 기준: 2026-10-14, 현재 원본 소스와 common의 기능별 평면 패키지 규칙.
 개발 규칙은 [AGENTS.md](F:/java/workspace/erpcom/AGENTS.md)를 따릅니다.
 기존 [LEVEL2_INTEGRATION.md](F:/java/workspace/erpcom/docs/LEVEL2_INTEGRATION.md)의 인증 연결 계약과
 새로 승인된 단위·통화·금액 표시 기준을 함께 설명합니다.
 
 **구현 상태:** 이 프로젝트에는 Level 1의 인증 연결 인터페이스가 있습니다.
 실제 로그인·JWT·세션·SSO 구현은 후속 Level 2 작업입니다.
-`TB_UNIT`, `TB_CURRENCY`, `TB_MENU_AMOUNT_FORMAT`도 아직 구현되지 않은 Level 1 확장 설계입니다.
-이 문서의 연결 순서와 예시는 구현 계약이며, 새 API나 로그인 기능이 이미 존재한다는 뜻은 아닙니다.
+`TB_UNIT`, `TB_CURRENCY`, `TB_MENU_AMOUNT_FORMAT`은 원본 V001·V002와 common/basis 소스에 반영되어 있습니다.
+실제 Oracle 초기화·운영 화면 실행·Level 2 인증 연결은 소스 반영과 구분합니다.
+새 기준정보 API가 있어도 기본 미인증 제공자는 null을 반환하므로 실제 인증 연결 없이 보호된 조회를 사용할 수 없습니다.
 
 ## 읽는 순서
 
@@ -35,24 +36,37 @@ Level 1은 확인된 직원에게 “이 메뉴를 읽어도 되나요?”, “�
 |---|---|---|
 | 조직·사용자·ROLE·메뉴·버튼 권한 | Level 1 | 기존 구현 |
 | 공통코드·다국어·공통 오류 | Level 1 | 기존 구현 |
-| 단위 `TB_UNIT` | Level 1 | 승인된 확장 설계, 후속 구현 |
-| 통화 `TB_CURRENCY` | Level 1 | 승인된 확장 설계, 후속 구현 |
-| 금액 표시 `TB_MENU_AMOUNT_FORMAT` | Level 1 | 승인된 확장 설계, 후속 구현 |
+| 단위 `TB_UNIT` | Level 1 | 원본 SQL·Java에 반영, 운영 DB 실행은 별도 |
+| 통화 `TB_CURRENCY` | Level 1 | 원본 SQL·Java에 반영, 운영 DB 실행은 별도 |
+| 금액 표시 `TB_MENU_AMOUNT_FORMAT` | Level 1 | 원본 SQL·Java에 반영, 운영 DB 실행은 별도 |
 | 실제 로그인·비밀번호 검사·세션·토큰·SSO | Level 2 | 후속 구현 |
 | 품목별 포장 환산·재고 수불·환율 적용 원가 계산 | 해당 업무 | 후속 업무 구현 |
 
 단위·통화·금액 표시가 새로 필요하다고 인증 Starter 안에 같은 목적의 테이블을 만들지 않습니다.
 LOCAL 로그인, Session, JWT, SSO 등 인증 방식이 달라져도 같은 Level 1 기준정보를 사용합니다.
 
-### 1.1 Java 파일의 위치도 역할을 구별한다
+### 1.1 common은 기능별 한 폴더에서 관리한다
 
-신규 구현은 기능 아래 `controller`, `service`, `model`, `mapper`, `config`처럼
-역할별로 구분하는 프로젝트 관례를 따릅니다.
-실제 로그인 기능은 향후 `auth/controller`, `auth/service`, `auth/model`, `auth/mapper`, `auth/config`
-구조로 구성할 수 있습니다. 이 폴더와 클래스들이 현재 구현되어 있다는 뜻은 아닙니다.
+common/master·message·permission·reference·web·error는 각 기능 폴더에 관련 Java 파일을 함께 둡니다.
+새 basis도 같은 방식이며 basis/controller·basis/service·basis/model·basis/mapper로 나누지 않습니다.
 
-오류·다국어·권한 기능은 기존 공통 구현을 재사용합니다.
-이번 문서 추가로 기존 Java 패키지를 이동하거나 기존 폴더를 재구성하지 않습니다.
+```text
+common/basis/
+  BasisController.java
+  BasisService.java
+  BasisServiceImpl.java
+  BasisMapper.java
+  BasisModels.java
+```
+
+다섯 파일의 package는 `com.erpcom.erpcom.common.basis`입니다.
+파일을 한 폴더에 둬도 Controller → Service → ServiceImpl → Mapper → DB 역할은 유지합니다.
+XML은 `src/main/resources/mapper/common/BasisMapper.xml`, namespace는
+`com.erpcom.erpcom.common.basis.BasisMapper`, record resultType은 BasisModels$... 경로입니다.
+Java·테스트 import와 XML을 함께 맞추고 옛 Java 파일을 중복으로 남기지 않습니다.
+
+Level 2는 기존 오류·메시지·권한과 위 basis 기능을 재사용합니다.
+실제 인증 구현의 패키지를 별도로 정할 수 있지만 이 때문에 Level 1 common을 다시 역할별 폴더로 나누지 않습니다.
 
 <a id="chapter-2"></a>
 ## 2. 검증된 사용자 번호를 연결하기
@@ -120,7 +134,7 @@ Level 2가 `CurrentUserProvider` 타입의 검증된 제공자를 연결해야 �
 
 ### 3.2 실제 예 1: 단위를 등록하는 관리자
 
-아래는 후속 기능 구현 후의 처리 예시입니다. 현재 단위 등록 API가 있다는 뜻은 아닙니다.
+현재 단위 관리 API는 기존 MasterController의 units resource입니다. 아래는 Level 2 인증까지 연결했을 때의 예시입니다.
 
 ```text
 관리자가 KG 단위를 등록하려고 요청
@@ -133,7 +147,7 @@ CREATED_BY=123으로 등록
 ```
 
 CREATED_BY를 요청자가 임의로 지정하게 하지 않습니다.
-후속 Migration이 공통 기준자료를 넣을 때만 시스템 생성자 예약값 0을 사용합니다.
+최초 Seed 또는 후속 Migration이 공통 기준자료를 넣을 때만 시스템 생성자 예약값 0을 사용합니다.
 
 ### 3.3 실제 예 2: 억원 표시 설정을 변경하는 관리자
 
@@ -156,7 +170,7 @@ Level 1 버전 검사: 읽었던 VERSION_NO와 현재 버전이 같은지 확인
 ### 4.1 UNIT은 Level 1 기준정보를 이용한다
 
 Level 2에서 EA·PCS·KG·G 목록이나 KG→G 환산계수를 다시 정의하지 않습니다.
-후속 Level 1 구현이 단위 종류·소수 수량 정밀도·공통 환산 기준을 제공합니다.
+현재 BasisServiceImpl.java의 units()·convertQuantity()가 단위 목록과 정확한 환산을 제공합니다.
 
 예를 들어 `1.25 KG = 1250 G`는 공통 환산 기준을 사용할 수 있습니다.
 볼펜의 `1 BOX = 12 EA`와 음료의 `1 BOX = 24 EA`는 품목별 관계이므로 재고 업무에서 관리합니다.
@@ -164,13 +178,12 @@ MB/GB와 MiB/GiB 구분도 Level 1의 단위 정의를 그대로 사용합니다
 
 ### 4.2 CURRENCY 테이블과 record는 역할이 다르다
 
-지원 통화 목록은 후속 `TB_CURRENCY`가 원본입니다.
-조회한 자료는 `CurrencyInfo` 같은 record에 담아 전달할 수 있습니다.
-이 이름은 설계 예시이며 현재 Java 클래스가 아닙니다.
+통화 목록의 정의와 Seed는 TB_CURRENCY에 있으며 현재 BasisModels.java의 CurrencyInfo record로 전달합니다.
+BasisController.currencies() → BasisServiceImpl.currencies() → BasisMapper.currencies() 순서로 조회하고 이름을 번역합니다.
 
 ```text
 DB: KRW, 기본 소수 자릿수 0, 이름 메시지 코드 보관
-Level 1 조회·번역: CurrencyInfo("KRW", "대한민국 원", 0)으로 전달
+Level 1 조회·번역: CurrencyInfo("KRW", "대한민국 원", 0, "410")으로 전달
 Level 2: 이 통화 목록을 인증 코드 안에 복제하지 않음
 ```
 
@@ -192,9 +205,10 @@ KRW의 기본 소수 자릿수 0과 억원 화면의 표시 자릿수 1은 서�
 금액·소수 수량·환산계수는 BigDecimal과 적절한 DB 숫자 정밀도로 처리합니다.
 원본은 보존하고 화면·보고서·Excel에 같은 표시·반올림 정책을 적용합니다.
 
-후속 Level 1 서비스가 메뉴·항목 설정을 해석하고 화면에 전달합니다.
-현재 `ReferenceDataServiceImpl.java`의 `bootstrap()`에는 이 표시 설정이 없습니다.
-확장된 bootstrap 응답으로 제공할지 별도 조회로 제공할지는 실제 구현에서 결정합니다.
+현재 BasisServiceImpl.amountFormats()가 정책을 조회하고 displayAmount()가 실제 금액을 표시합니다.
+조회 창구는 BasisController.amountFormats()의 GET /api/common/amount-formats/{menuCode}입니다.
+단위·통화 조회도 별도 API이며 ReferenceDataServiceImpl.bootstrap()의 기존 응답은 유지합니다.
+이 클래스들은 모두 common/basis 한 폴더에 있고 Level 2에 복제하지 않습니다.
 
 ### 4.4 메뉴 설정 조회와 업무 금액 조회 권한을 구별한다
 
@@ -225,7 +239,7 @@ KRW의 기본 소수 자릿수 0과 억원 화면의 표시 자릿수 1은 서�
 단위·통화·메뉴 표시 정책 전체를 로그인 시점의 토큰이나 세션에 고정하면,
 관리자가 소수 자릿수를 바꾸어도 로그인 당시 설정이 계속 사용될 수 있습니다.
 
-후속 구현에서는 Level 1 서비스에서 최신 유효 설정을 조회합니다.
+현재 basis 서비스는 Level 1 DB 조회로 유효 설정을 읽습니다.
 장기 캐시가 필요하면 설정 변경 트랜잭션의 커밋 후 관련 조회·표시 정책 캐시를 무효화합니다.
 여러 서버를 사용하는 경우에도 변경 반영 정책을 정해야 합니다.
 현재 새 기준정보 캐시나 무효화 코드가 구현되었다는 뜻은 아닙니다.
@@ -250,7 +264,7 @@ Level 2 인증 필터의 오류 처리는 기존 `ApiErrorWriter.java`의
 
 ### 6.2 기준정보 Seed와 로그인 계정 생성은 다르다
 
-기존 V003은 ROLE 10의 COMMON_ADMIN 메뉴·버튼 권한 예제를 준비하지만,
+현재 통합 V002의 역할·메뉴·버튼 권한 구역은 ROLE 10의 COMMON_ADMIN 권한 예제를 준비하지만,
 로그인 가능한 실제 사용자와 사용자-ROLE 연결을 자동 생성하지 않습니다.
 
 새 단위·통화 Seed를 추가해도 관리자 로그인 계정이 생기는 것은 아닙니다.
@@ -264,11 +278,11 @@ Level 2 인증 필터의 오류 처리는 기존 `ApiErrorWriter.java`의
 <a id="chapter-7"></a>
 ## 7. 후속 구현 순서와 확인할 사항
 
-이 문서 수정 다음에 실제 구현을 진행한다면 다음 순서를 권장합니다.
+Level 1 소스가 반영된 현재 상태에서 실제 인증·운영 연결은 다음 순서로 진행합니다.
 
-1. Level 1 후속 Migration으로 세 테이블·제약·공통 5개 컬럼·VERSION_NO를 추가합니다.
-2. 표준 단위·지원 통화·분류·다국어 메시지를 준비하고 고객별 메뉴 표시 설정은 분리합니다.
-3. 기존 Controller → Service → ServiceImpl → Mapper 계층으로 조회·관리와 소수형 검증을 구현합니다.
+1. 최초 설치 상태에서 통합 V001·V002로 Oracle을 준비합니다. 같은 내용의 V003을 함께 실행하지 않습니다.
+2. V002의 테이블별 공통 예제와 실제 고객 메뉴·운영 초기값을 구분합니다.
+3. 평면 common/basis 소스와 기존 관리 계층을 사용하고 테스트·생성기가 현재 schema와 일치하는지 확인합니다.
 4. Level 2 인증 구현이 검증된 USER_ID를 CurrentUserProvider로 제공합니다.
 5. 새 관리 창구에 메뉴·버튼 권한, 감사 기록, 변경 충돌 검사를 연결합니다.
 6. 화면·보고서·Excel이 같은 원본 금액과 표시 정책을 사용하게 연결합니다.
@@ -276,7 +290,8 @@ Level 2 인증 필터의 오류 처리는 기존 `ApiErrorWriter.java`의
 세 영역의 자세한 컬럼·환산 예제·계산 예제·기존 Java 연결 지점은
 [ErpComLevel1.md의 17장](F:/java/workspace/erpcom/docs/ErpComLevel1.md#chapter-17)에 있습니다.
 
-후속 구현 검증에서는 다음 사례를 확인해야 합니다. **이번 문서 수정에서 실행한 테스트 목록은 아닙니다.**
+아래는 실제 인증·운영 연결에서 확인할 사례입니다.
+평면 basis 검토 사본의 격리 H2 검증은 39개가 통과했지만 이번 문서 수정에서는 원본 애플리케이션·Oracle 테스트를 다시 실행하지 않았습니다.
 
 | 확인할 사례 | 기대하는 결과 |
 |---|---|
