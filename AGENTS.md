@@ -95,9 +95,10 @@ VERSION_NO NUMBER(19) DEFAULT 0 NOT NULL
 - `TB_CURRENCY`
 - `TB_MENU_AMOUNT_FORMAT`
 
-위 세 테이블은 2026-10-13에 승인된 Level 1 확장 기준이다. 이 문서 갱신 시점에는
-기존 18개 테이블만 구현되어 있으며, 세 테이블의 DDL / Seed / Java / API 구현은 후속 작업이다.
-개발 표준에 포함되었다는 사실과 실제 구현 완료 여부를 구분한다.
+위 세 테이블은 Level 1 공통 기준정보에 포함한다. 2026-10-14 원본 소스 확인 기준으로
+통합 V001에는 총 21개 테이블 정의, V002에는 테이블별 Seed가 있으며,
+단위 / 통화 / 금액 표시 Java 구현은 `common/basis` 한 폴더에 반영되어 있다.
+소스 반영, 실제 DB Migration 실행, 운영 화면 / Level 2 인증 연결 완료를 각각 구분한다.
 
 ---
 
@@ -326,9 +327,28 @@ DB 테이블과 Java `record`는 대체 관계가 아니다. DB는 기준정보�
 `record`는 조회 / 요청 / 응답 자료를 전달한다. 단위 / 통화 목록을 Java의 고정 record 목록으로 관리하지 않는다.
 금액 / 소수 수량 / 환산계수 계산은 `BigDecimal`을 사용하고 DB의 정밀도 / 소수 자릿수와 맞춘다.
 
-신규 기능의 패키지는 기능 아래 `controller`, `service`, `model`, `mapper`, `config`처럼
-역할을 구분하는 기존 프로젝트 관례를 따른다. 기존 `common/error`, 다국어 / 권한 구조는 재사용한다.
-이 규칙 추가만으로 기존 패키지나 파일을 이동하지 않는다. 구조 변경이 필요하면 먼저 이유와 영향을 설명한다.
+`common`의 Java 파일은 기능별 폴더 하나에 함께 둔다.
+기존 `common/master`, `common/message`, `common/permission`, `common/reference`, `common/web`,
+`common/error`와 같은 구조를 유지한다. 새 `common/basis`도 같은 규칙을 적용한다.
+`basis/controller`, `basis/service`, `basis/model`, `basis/mapper` 같은 역할별 하위 폴더를 만들지 않는다.
+
+```text
+src/main/java/com/erpcom/erpcom/common/basis/
+  BasisController.java
+  BasisService.java
+  BasisServiceImpl.java
+  BasisMapper.java
+  BasisModels.java
+```
+
+위 다섯 파일의 package는 모두 `com.erpcom.erpcom.common.basis`이다.
+Controller / Service / ServiceImpl / Mapper / model의 역할과
+호출 순서는 그대로 유지하며, 역할 분리를 폴더 분리와 혼동하지 않는다.
+`BasisMapper.xml`은 `src/main/resources/mapper/common/BasisMapper.xml`에 두고
+namespace는 `com.erpcom.erpcom.common.basis.BasisMapper`, record resultType은
+`com.erpcom.erpcom.common.basis.BasisModels$...`를 사용한다.
+패키지가 바뀌면 관련 import / 테스트 / XML 경로를 함께 맞추고 옛 Java 파일을 중복으로 남기지 않는다.
+기존 오류 / 다국어 / 권한 구현은 재사용한다. 이 규칙 때문에 다른 기능의 파일을 일괄 이동하지 않는다.
 
 ---
 
@@ -355,7 +375,12 @@ V002에는 다음과 같은 공통 기준값을 넣을 수 있다.
 
 Mapper/Service는 운영 중 관리자 화면에서 등록/수정/비활성화하는 용도다.
 
-단위 / 통화 / 금액 표시 설정 확장은 적용된 V001~V003을 수정하지 않고 후속 Version Migration으로 추가한다.
+이미 DB에 적용된 Migration은 수정하지 않고 후속 Version Migration으로 확장한다.
+DB 적용 전 최초 설치 구성을 재정리하는 경우 승인된 통합 V001 / V002를 사용할 수 있다.
+현재 최초 설치 구성은 V003의 구조를 V001에, 데이터를 V002에 포함한 두 파일이다.
+통합 구성을 적용할 때 같은 내용의 V003을 다시 실행하지 않는다.
+V002는 테이블별로 초기 / 추가 자료를 한 구역에 모아 작성하되, 외래키 참조 테이블을 먼저 준비한다.
+자기 참조는 부모 / 기준 행을 먼저 준비하고, INSERT ... SELECT는 관련 테이블 구역에 둔다.
 표준 단위 / 지원 통화 / 관련 메시지와 공통 분류를 Migration으로 준비한다.
 고객별 실제 메뉴의 금액 표시 설정은 고객별 후속 Migration 또는 권한 있는 관리자 등록으로 분리한다.
 
@@ -406,6 +431,8 @@ Level 2는 검증된 `USER_ID`를 제공하며, Level 1은 그 번호로 기준�
 16. 통화 기본 소수 자릿수 / 화면 표시 자릿수 / 내부 계산 정밀도를 구분했는가?
 17. 원래 금액과 통화를 보존하고 화면 / 보고서 / Excel에 같은 표시 정책을 적용하는가?
 18. 환산 가능한 단위 종류와 품목별 포장 환산의 경계를 확인했는가?
+19. common 기능 폴더 안에 Java 파일을 함께 두고 package / import / Mapper XML을 일치시켰는가?
+20. Seed가 테이블별로 모여 있고 테이블 간 / 자기 참조 입력 순서가 맞는가?
 
 표준에서 벗어나야 하면 구현 전에 이유를 명시한다.
 
@@ -422,6 +449,7 @@ Level 2는 검증된 `USER_ID`를 제공하며, Level 1은 그 번호로 기준�
 |---|---|---|
 | `UNIT_CODE` | 단위 기본키 | `EA`, `PCS`, `KG`, `G`, `MB`, `GB` |
 | `UNIT_NAME_MSG_CODE` | `TB_MESSAGE`와 연결할 표시명 코드 | `COD_UNIT_KG` |
+| `UNIT_TYPE_GROUP` | 공통코드 복합 FK의 고정 분류, API 편집 제외 | `UNIT_TYPE` |
 | `UNIT_TYPE_CODE` | 공통코드 `UNIT_TYPE`의 분류 | 수량 / 무게 / 데이터 용량 |
 | `QUANTITY_SCALE` | 기본 허용 수량 소수 자릿수 | 업무에서 정한 KG의 소수 3자리 |
 | `BASE_UNIT_CODE` | 같은 종류의 기준 단위, `TB_UNIT` 참조 | `G` |
@@ -431,7 +459,8 @@ Level 2는 검증된 `USER_ID`를 제공하며, Level 1은 그 번호로 기준�
 공통 5개 컬럼과 `VERSION_NO`를 포함한다. 표시명은 기존 다국어 테이블을 재사용한다.
 환산을 지원하는 단위는 기준 단위와 계수를 함께 정의하고 기준 단위 자신의 계수는 1로 둔다.
 환산을 지원하지 않는 단위는 기준 단위 / 계수를 모두 비워 두는 정책을 사용할 수 있다.
-계수는 양수, 수량 소수 자릿수는 0 이상 정수여야 하며 허용 정밀도 / 상한은 구현 설계에 명시한다.
+계수는 양수이며 현재 `NUMBER(38,18)`을 사용한다. 수량 소수 자릿수는 현재 0~9의 정수이다.
+기준 단위는 계수 1인 최종 기준 단위를 직접 참조하며 종류 / 기준 / 환산계수의 등록 후 변경은 제한한다.
 기준 단위는 같은 종류여야 하며, 환산 관계의 모순을 검사한다.
 계수가 1인 기준 단위의 자기 참조는 허용하되, 그 외 환산 관계의 순환은 허용하지 않는다.
 
@@ -478,10 +507,11 @@ MB / GB에 1024 기준을 암묵적으로 적용하지 않는다.
 조회 / 응답 객체는 다음과 같은 `record`로 전달할 수 있다. 이 선언은 DB를 만들거나 저장하지 않는다.
 
 ```java
-public record CurrencyInfo(String currencyCode, String currencyName, int minorUnitDigits) {}
+public record CurrencyInfo(String currencyCode, String name, int minorUnitDigits, String numericCode) {}
 ```
 
-`CurrencyInfo`는 후속 구현 예시이며, 현재 존재하는 Java 클래스가 아니다.
+현재 구현은 `common/basis/BasisModels.java` 안의 `CurrencyInfo` record이다.
+통화 기본 소수 자릿수와 화면 표시 자릿수는 현재 각각 0~9의 정수로 검증한다.
 환율은 통화 목록과 별개이다. USD → KRW 환산에는 적용 날짜 / 환율 등 업무 정책이 필요하다.
 통화명 또는 화면 표시 설정만 바꾸어 서로 다른 통화의 금액을 변환 / 합산하지 않는다.
 
@@ -513,8 +543,7 @@ public record CurrencyInfo(String currencyCode, String currencyName, int minorUn
 금액 항목별 설정 → 없으면 메뉴 DEFAULT 설정 → 없으면 시스템 기본 설정
 ```
 
-시스템 기본값은 구현 설계에 명시한다. 기본 방향은 실제 통화 유지 / 배율 1 /
-해당 통화의 기본 소수 자릿수이며, 반올림 방식도 명시적으로 정한다.
+현재 시스템 기본값은 실제 통화 유지 / 배율 1 / 해당 통화의 기본 소수 자릿수 / HALF_UP이다.
 공통 5개 컬럼과 `VERSION_NO`를 포함한다. 메뉴 / 통화 / 메시지 참조를 검증한다.
 소수 자릿수는 0 이상 정수이며 허용 상한을 정한다. 표시 배율은 양수,
 반올림 방식은 허용 목록으로 검증한다. 이 정책과 실제 계산을 Backend에서도 검증한다.
@@ -548,10 +577,13 @@ DB `NUMBER(p,s)`는 최대 금액 / 필요 정밀도를 검토하여 결정하�
 화면에서 버튼을 숨기는 것만으로 Backend 검사를 대신하지 않는다.
 감사 컬럼에는 Level 2가 검증하고 Level 1이 확인한 실제 `USER_ID`를 기록한다.
 
-현재 `MasterCatalog` / `MasterServiceImpl` / `ReferenceDataServiceImpl`은 새 세 테이블을 처리하지 않는다.
-후속 구현에서 기존 계층을 재사용하되, 소수형 처리와 각 기준정보의 관계 검증을 명시적으로 추가한다.
-조회 결과는 record로 전달할 수 있으며, 새 클래스 / API는 구현 전까지 문서에서 예정으로 표시한다.
-화면 준비 API에 표시 정책을 포함할지 별도 조회로 제공할지는 구현 시 결정한다.
+현재 `MasterCatalog` / `MasterServiceImpl`은 새 세 테이블의 공통 관리를 처리한다.
+`BasisController` / `BasisService` / `BasisServiceImpl` / `BasisMapper` / `BasisModels`는
+`common/basis` 한 폴더에서 단위 / 통화 / 금액 표시 조회와 계산을 제공한다.
+수량 환산은 `convertQuantity()`, 금액 표시는 `displayAmount()`를 사용한다.
+`ReferenceDataServiceImpl.bootstrap()`의 응답은 유지하고, 기준정보는 별도
+`GET /api/common/units`, `/api/common/currencies`, `/api/common/amount-formats/{menuCode}`로 조회한다.
+실제 인증 사용자와 해당 메뉴 권한을 검증하며 원가 자료 자체의 범위 검사는 업무 서비스에서 수행한다.
 
 장기 캐시를 도입하면 기준정보 변경 커밋 후 관련 조회 / 표시 정책 캐시를 무효화한다.
 로그인 토큰 / 세션에 단위 / 통화 / 표시 정책 전체를 고정하여 변경이 반영되지 않게 하지 않는다.
